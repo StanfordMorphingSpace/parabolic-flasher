@@ -26,7 +26,7 @@ function [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_St
         a_f(stat_idxs(j), :) = stat_a; %stat_a;
     end
 
-    [p_u, v_u, E_v_u] = makeStep(p_u, v_u, a_u, @getJacobian_u, @getb_u, labels, beta, i, mass, dt, {outer_idx, geo.c, outer_R});
+    [p_u, v_u, E_v_u] = makeStep(p_u, v_u, a_u, @getJacobian_u_fast, @getb_u, labels, beta, i, mass, dt, {outer_idx, geo.c, outer_R});
     [p_f, v_f, E_v_f] = makeStep(p_f, v_f, a_f, @getJacobian_f, @getb_f, labels, beta, i, mass, dt, {geo.h, geo.n, cone_idx, geo.A, geo.c, stat_idxs});
     
 end
@@ -71,52 +71,6 @@ function [p, v, E_v] = makeStep(p, v, a, getJacobian, getb, labels, beta, i, mas
     E_v = 1/2.*mass.*vecnorm(v')'.^2;
 end
 
-function J = getJacobian_u(nodes_f, labels, beta, varargin) %getJacobian_f(nodes_f, labels, beta, h, n, cone_idx)
-    outer_idx = varargin{1}{1}{1};
-    c = varargin{1}{1}{2};
-    % jacobian of equality constraints
-    % here nodes_f is a stacked column vector of all node coordinates
-    dfdx = @(x, y) 2*x;
-    dfdy = @(x, y) 2*y;
-
-    J = zeros(1, length(nodes_f));
-    j = 1;
-
-    for i = 1:length(outer_idx)
-        idx1 = outer_idx(i)*3-2;
-        idx2 = outer_idx(i)*3-1;
-        
-        J(j, idx1) = dfdx(nodes_f(idx1), nodes_f(idx2));
-        J(j, idx2) = dfdy(nodes_f(idx1), nodes_f(idx2));
-        j = j+1;
-    end
-    
-    for i = 1:3:length(nodes_f)
-        % rotational symmetry
-        if labels((i+2)/3, 1) < 0 % rot valley
-            orig_idx = find(labels==-labels((i+2)/3, 1));
-            J(j, orig_idx*3-2) = -cos(beta);
-            J(j, orig_idx*3-1) = sin(beta);
-            J(j, i) = 1;
-
-            J(j+1, orig_idx*3-2) = -sin(beta);
-            J(j+1, orig_idx*3-1) = -cos(beta);
-            J(j+1, i+1) = 1;
-
-            J(j+2, orig_idx*3) = -1;
-            J(j+2, i+2) = 1;
-            j = j+3;
-        else % surface constraints
-            J(j, i) = 2*c*nodes_f(i);
-            J(j, i+1) = 2*c*nodes_f(i+1);
-            J(j, i+2) = -1;
-            j = j+1;
-        end
-    end
-   
-end
-
-
 function b = getb_u(nodes_f, labels, beta, varargin)
     outer_idx = varargin{1}{1}{1};
     c = varargin{1}{1}{2};
@@ -155,57 +109,6 @@ function b = getb_u(nodes_f, labels, beta, varargin)
     end
 
 end
-
-function J = getJacobian_f(nodes_f, labels, beta, varargin)
-    h = varargin{1}{1}{1};
-    n = varargin{1}{1}{2};
-    cone_idx = varargin{1}{1}{3};
-    c = varargin{1}{1}{5};
-    stat_idxs = varargin{1}{1}{6};
-    % jacobian of equality constraints
-    % here nodes_f is a stacked column vector of all node coordinates
-    dfdx = @(x, y) y/(x^2+y^2) + beta*x/(2*h*sqrt(x^2 + y^2));
-    dfdy = @(x, y) -x/(x^2+y^2) + beta*y/(2*h*sqrt(x^2 + y^2));
-
-    J = zeros(1, length(nodes_f));
-    j = 1;
-    
-    % spiral constraints
-    for i = 1:3:length(nodes_f)
-        if ~isnan(labels((i+2)/3, 1)) % major fold line
-            if (labels((i+2)/3, 1) <= n && labels((i+2)/3, 1) > 0) % || labels((i+2)/3, 1) > n + cone_idx % everything else
-                J(j, i) = dfdx(nodes_f(i), nodes_f(i+1));
-                J(j, i+1) = dfdy(nodes_f(i), nodes_f(i+1));
-                j = j + 1;
-            end
-        end
-    end
-    % rotational symmetry
-    for i = 1:3:length(nodes_f)
-        if labels((i+2)/3, 1) < 0 % rot valley
-            orig_idx = find(labels==-labels((i+2)/3, 1));
-            J(j, orig_idx*3-2) = -cos(beta);
-            J(j, orig_idx*3-1) = sin(beta);
-            J(j, i) = 1;
-
-            J(j+1, orig_idx*3-2) = -sin(beta);
-            J(j+1, orig_idx*3-1) = -cos(beta);
-            J(j+1, i+1) = 1;
-
-            J(j+2, orig_idx*3) = -1;
-            J(j+2, i+2) = 1;
-            j = j+3;
-        else % surface constraints
-            if ismember((i+2)/3, stat_idxs(3:end))
-                J(j, i) = 2*c*nodes_f(i);
-                J(j, i+1) = 2*c*nodes_f(i+1);
-                J(j, i+2) = -1;
-                j = j+1;
-            end
-        end
-    end
-end
-
 
 function b = getb_f(nodes_f, labels, beta, varargin)
     h = varargin{1}{1}{1};
