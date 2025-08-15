@@ -19,8 +19,8 @@ function J = getJacobian_u(nodes_f, labels, beta, varargin) %getJacobian_f(nodes
         j = j+1;
     end
     
+    % rotational symmetry
     for i = 1:3:length(nodes_f)
-        % rotational symmetry
         if labels((i+2)/3, 1) < 0 % rot valley
             orig_idx = find(labels==-labels((i+2)/3, 1));
             J(j, orig_idx*3-2) = -cos(beta);
@@ -34,12 +34,16 @@ function J = getJacobian_u(nodes_f, labels, beta, varargin) %getJacobian_f(nodes
             J(j+2, orig_idx*3) = -1;
             J(j+2, i+2) = 1;
             j = j+3;
-        else % surface constraints
+        end
+    end
+   
+    for i = 1:3:length(nodes_f)
+        % rotational symmetry
+        if ~(labels((i+2)/3, 1) < 0) % rot valley
             J(j, i) = 2*c*nodes_f(i);
             J(j, i+1) = 2*c*nodes_f(i+1);
             J(j, i+2) = -1;
             j = j+1;
         end
     end
-   
 end

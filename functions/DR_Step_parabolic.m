@@ -26,49 +26,9 @@ function [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_St
         a_f(stat_idxs(j), :) = stat_a; %stat_a;
     end
 
-    [p_u, v_u, E_v_u] = makeStep(p_u, v_u, a_u, @getJacobian_u_fast, @getb_u, labels, beta, i, mass, dt, {outer_idx, geo.c, outer_R});
+    [p_u, v_u, E_v_u] = makeStep(p_u, v_u, a_u, @getJacobian_u, @getb_u, labels, beta, i, mass, dt, {outer_idx, geo.c, outer_R});
     [p_f, v_f, E_v_f] = makeStep(p_f, v_f, a_f, @getJacobian_f, @getb_f, labels, beta, i, mass, dt, {geo.h, geo.n, cone_idx, geo.A, geo.c, stat_idxs});
     
-end
-
-function [p, v, E_v] = makeStep(p, v, a, getJacobian, getb, labels, beta, i, mass, dt, varargin)
-    a_stack = a'; a_stack = a_stack(:);
-    v_stack = v'; v_stack = v_stack(:);
-    p_stack = p'; p_stack = p_stack(:);
-
-    J = getJacobian(p_stack, labels, beta, varargin);
-
-    J_pseudo = J'/(J*J');
-
-    proj = (eye(length(a_stack)) - J_pseudo*J);
-
-    r_stack = a_stack'*proj; r_stack = r_stack';
-
-    if i ~= 1
-        v_stack = proj*v_stack.*norm(v_stack)/norm(proj*v_stack);
-    end
-
-    v_stack = v_stack + r_stack.*dt;
-    p_stack = p_stack + v_stack.*dt;
-
-    % pullback
-    b = getb(p_stack, labels, beta, varargin);
-    for j = 1:100
-        if norm(b)<1e-6
-            break
-        end
-        dp_stack = -J_pseudo*b;
-        p_stack = p_stack + dp_stack;
-
-        J = getJacobian(p_stack, labels, beta, varargin);
-        J_pseudo = J'/(J*J');
-
-        b = getb(p_stack, labels, beta, varargin);
-    end
-
-    p = reshape(p_stack, size(p')); p = p';
-    v = reshape(v_stack, size(v')); v = v';
-    E_v = 1/2.*mass.*vecnorm(v')'.^2;
 end
 
 function b = getb_u(nodes_f, labels, beta, varargin)
