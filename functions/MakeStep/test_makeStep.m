@@ -24,19 +24,11 @@ for test_idx=1:2
     getb = data.getb;
     if test_type == "U"
         getJacobian = @getJacobian_u;
-        getJacobianFast = @getJacobian_u_fast;
     else
         getJacobian = @getJacobian_f;
-        getJacobianFast = @getJacobian_f_fast;
     end
 
     [actual_p, actual_v, actual_E_v] = makeStep(p, v, a, getJacobian, getb, labels, beta, i, mass, dt, varargin);
-    testCase.verifyThat(actual_p,IsEqualTo(expected_p, "Within",AbsoluteTolerance(eps)))
-    testCase.verifyThat(actual_v,IsEqualTo(expected_v, "Within",AbsoluteTolerance(eps)))
-    testCase.verifyThat(actual_E_v,IsEqualTo(expected_E_v, "Within",AbsoluteTolerance(eps)))
-
-
-    [actual_p, actual_v, actual_E_v] = makeStep(p, v, a, getJacobianFast, getb, labels, beta, i, mass, dt, varargin);
     testCase.verifyThat(actual_p,IsEqualTo(expected_p, "Within",AbsoluteTolerance(eps)))
     testCase.verifyThat(actual_v,IsEqualTo(expected_v, "Within",AbsoluteTolerance(eps)))
     testCase.verifyThat(actual_E_v,IsEqualTo(expected_E_v, "Within",AbsoluteTolerance(eps)))

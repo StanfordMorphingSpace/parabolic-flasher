@@ -1,4 +1,4 @@
-function J = getJacobian_u_fast(nodes_f, labels, beta, varargin) %getJacobian_f(nodes_f, labels, beta, h, n, cone_idx)
+function J = getJacobian_u(nodes_f, labels, beta, varargin) %getJacobian_f(nodes_f, labels, beta, h, n, cone_idx)
 outer_idx = varargin{1}{1}{1};
 num_outer_nodes = length(outer_idx);
 c = varargin{1}{1}{2};
