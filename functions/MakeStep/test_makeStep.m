@@ -21,11 +21,12 @@ for test_idx=1:2
     i = data.i;
     mass = data.mass;
     dt = data.dt;
-    getb = data.getb;
     if test_type == "U"
         getJacobian = @getJacobian_u;
+        getb = @getb_u;
     else
         getJacobian = @getJacobian_f;
+        getb = @getb_f;
     end
 
     [actual_p, actual_v, actual_E_v] = makeStep(p, v, a, getJacobian, getb, labels, beta, i, mass, dt, varargin);
