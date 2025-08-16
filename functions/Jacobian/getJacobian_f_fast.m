@@ -25,10 +25,6 @@ J = sparse(num_rotational_constrs+num_spiral_constraints+num_surface_constrs, le
 
 % why not constrain all major fold line indices?
 spiral_constr_indexes = 1:num_spiral_constraints;
-% Note: Sort is required for testing purposes only and can be removed
-% sorted_major_valley_indexes = sort(major_valley_indexes);
-% x_coord_indexes = sorted_major_valley_indexes*3-2;
-% y_coord_indexes = sorted_major_valley_indexes*3-1;
 x_coord_indexes = major_valley_indexes*3-2;
 y_coord_indexes = major_valley_indexes*3-1;
 J(sub2ind(size(J), spiral_constr_indexes, x_coord_indexes)) = dfdx(nodes_u(x_coord_indexes), nodes_u(y_coord_indexes));
@@ -42,8 +38,6 @@ J(rotational_constr_indexes, :) = Jrot;
 
 % g_inner (applied as a surface constraint)
 % Why? Also why not consider second major valley constrs?
-% Note: Sort is required for testing purposes only and can be removed
-% inner_fixed_node_indices = sort(inner_fixed_node_indices);
 surface_constraint_indexes = num_spiral_constraints + 3*num_rotational_constrs  + (1:num_surface_constrs);
 J(surface_constraint_indexes, :) = getSurfaceConstraintJacobian(inner_fixed_node_indices, nodes_u, c);
 end
