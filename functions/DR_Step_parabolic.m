@@ -26,8 +26,8 @@ function [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_St
         a_f(stat_idxs(j), :) = stat_a; %stat_a;
     end
 
-    [p_u, v_u, E_v_u] = makeStep(p_u, v_u, a_u, @getJacobian_u, @getb_u, labels, beta, i, mass, dt, {outer_idx, geo.c, outer_R});
-    [p_f, v_f, E_v_f] = makeStep(p_f, v_f, a_f, @getJacobian_f, @getb_f, labels, beta, i, mass, dt, {geo.h, geo.n, cone_idx, geo.A, geo.c, stat_idxs});
+    [p_u, v_u, E_v_u] = makeStep(p_u, v_u, a_u, @getJacobian_u_fast, @getb_u, labels, beta, i, mass, dt, {outer_idx, geo.c, outer_R});
+    [p_f, v_f, E_v_f] = makeStep(p_f, v_f, a_f, @getJacobian_f_fast, @getb_f, labels, beta, i, mass, dt, {geo.h, geo.n, cone_idx, geo.A, geo.c, stat_idxs});
     
 end
 

@@ -20,5 +20,4 @@ for i=1:2
     actualJ = getJacobian_u_fast(nodes_f, labels, beta, varargin);
     % assert(isequal(actualJ, expectedJ), "Test "+num2str(i)+" failed: Jacobian fast does not match expected output.")
     testCase.verifyThat(actualJ,IsEqualTo(sparse(expectedJ), "Within",AbsoluteTolerance(eps)))
-
 end
