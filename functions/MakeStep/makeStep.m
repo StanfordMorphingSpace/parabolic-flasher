@@ -7,7 +7,7 @@ function [p_new, v_new, E_v] = makeStep(p, v, a, getJacobian, getb, labels, beta
 
     J_pseudo = J'/(J*J');
 
-    proj = (eye(length(a_stack)) - J_pseudo*J);
+    proj = (speye(length(a_stack)) - J_pseudo*J);
 
     r_stack = a_stack'*proj; r_stack = r_stack';
 
