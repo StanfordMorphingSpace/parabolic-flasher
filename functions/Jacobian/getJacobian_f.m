@@ -1,4 +1,4 @@
-function J = getJacobian_f_fast(nodes_u, labels, beta, varargin)
+function J = getJacobian_f(nodes_u, labels, beta, varargin)
 % For Jacobian F, the inputs are nodes u, correct?
 h = varargin{1}{1}{1};
 n = varargin{1}{1}{2};
