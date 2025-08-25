@@ -1,6 +1,5 @@
-function [F_axial, E_axial, F_crease, E_crease, F_damping] = getDRForces_v2(nodes_f, nodes, edges, faces, EA, k_fold, lengths, angles, gamma, v, mass)
-    nodes_f = nodes_f';
-    nodes = nodes'; % only used to calculate correct norm direction (based on flat)
+function [F_axial, E_axial, F_crease, E_crease, F_damping] = getDRForces(nodes_f, nodes, edges, adj_faces, EA, k_fold, lengths, angles, gamma, v, mass)
+    % nodes only used to calculate correct norm direction (based on flat)
     F_crease = zeros(length(nodes_f), 3);
     E_crease = zeros(length(edges), 1);
 
@@ -12,28 +11,21 @@ function [F_axial, E_axial, F_crease, E_crease, F_damping] = getDRForces_v2(node
         p1_index = edges(i, 1);
         p2_index = edges(i, 2);
 
-        p1 = nodes_f(1:3, p1_index);
-        p2 = nodes_f(1:3, p2_index);
-        p1_u = nodes(1:3, p1_index);
-        p2_u = nodes(1:3, p2_index);
+        p1 = nodes_f(p1_index, :);
+        p2 = nodes_f(p2_index, :);
+        p1_u = nodes(p1_index, :);
+        p2_u = nodes(p2_index, :);
         
-        % Bending forces
-        faces_with_node1        = (faces(:, 1) == p1_index) | (faces(:, 2) == p1_index) | (faces(:, 3) == p1_index);
-        faces_with_node2        = (faces(:, 1) == p2_index) | (faces(:, 2) == p2_index) | (faces(:, 3) == p2_index);
-        faces_adjacent_to_edge  = faces((faces_with_node1 & faces_with_node2), :);
-
-        if size(faces_adjacent_to_edge, 1) == 2
+        % bending forces
+        if length(adj_faces{i}) == 2
             k_crease = lengths(i)*k_fold(i);
-            face1 = faces_adjacent_to_edge(1, :);
-            face2 = faces_adjacent_to_edge(2, :);
+            p3_1_index = adj_faces{i}(1);
+            p3_2_index = adj_faces{i}(2);
 
-            p3_1_index = face1((face1 ~= p1_index) & (face1 ~= p2_index));
-            p3_2_index = face2((face2 ~= p1_index) & (face2 ~= p2_index));
-
-            p3_1 = nodes_f(1:3, p3_1_index);
-            p3_2 = nodes_f(1:3, p3_2_index); 
-            p3_1_u = nodes(1:3, p3_1_index);
-            p3_2_u = nodes(1:3, p3_2_index);
+            p3_1 = nodes_f(p3_1_index, :);
+            p3_2 = nodes_f(p3_2_index, :); 
+            p3_1_u = nodes(p3_1_index, :);
+            p3_2_u = nodes(p3_2_index, :);
 
             h1 = norm(cross(p1-p3_1, p2-p3_1))/norm(p2-p1);
             h2 = norm(cross(p1-p3_2, p2-p3_2))/norm(p2-p1);
@@ -66,11 +58,11 @@ function [F_axial, E_axial, F_crease, E_crease, F_damping] = getDRForces_v2(node
             dthdp1 = -cot(a431)/(cot(a314)+cot(a431)).*n1./h1 + -cot(a423)/(cot(a342)+cot(a423)).*n2./h2;
             dthdp2 = -cot(a314)/(cot(a314)+cot(a431)).*n1./h1 + -cot(a342)/(cot(a342)+cot(a423)).*n2./h2;
 
-            F_crease(p3_1_index, :) = F_crease(p3_1_index, :) - k_crease.*(angle-angles(i)).*n1'./h1;
-            F_crease(p3_2_index, :) = F_crease(p3_2_index, :) - k_crease.*(angle-angles(i)).*n2'./h2;
+            F_crease(p3_1_index, :) = F_crease(p3_1_index, :) - k_crease.*(angle-angles(i)).*n1./h1;
+            F_crease(p3_2_index, :) = F_crease(p3_2_index, :) - k_crease.*(angle-angles(i)).*n2./h2;
     
-            F_crease(p1_index, :) = F_crease(p1_index, :) - k_crease.*(angle-angles(i)).*dthdp1';
-            F_crease(p2_index, :) = F_crease(p2_index, :) - k_crease.*(angle-angles(i)).*dthdp2';
+            F_crease(p1_index, :) = F_crease(p1_index, :) - k_crease.*(angle-angles(i)).*dthdp1;
+            F_crease(p2_index, :) = F_crease(p2_index, :) - k_crease.*(angle-angles(i)).*dthdp2;
 
             % E_crease(p3_1_index) = E_crease(p3_1_index) + k_crease/h1*(angle-angles(i))^2;
             % E_crease(p3_2_index) = E_crease(p3_2_index) + k_crease/h2*(angle-angles(i))^2;
@@ -84,8 +76,8 @@ function [F_axial, E_axial, F_crease, E_crease, F_damping] = getDRForces_v2(node
         dir12 = (p2-p1)/norm(p1-p2);
         norm12 = norm(p1-p2);
 
-        F_axial(p1_index, :) = F_axial(p1_index, :) + (EA/lengths(i)).*(norm12-lengths(i)).*dir12';
-        F_axial(p2_index, :) = F_axial(p2_index, :) - (EA/lengths(i)).*(norm12-lengths(i)).*dir12';
+        F_axial(p1_index, :) = F_axial(p1_index, :) + (EA/lengths(i)).*(norm12-lengths(i)).*dir12;
+        F_axial(p2_index, :) = F_axial(p2_index, :) - (EA/lengths(i)).*(norm12-lengths(i)).*dir12;
         
         % E_axial(p1_index) = E_axial(p1_index) + (EA/lengths(i)).*(norm12-lengths(i))^2;
         % E_axial(p2_index) = E_axial(p2_index) + (EA/lengths(i)).*(norm12-lengths(i))^2;

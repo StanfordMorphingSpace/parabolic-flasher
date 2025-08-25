@@ -12,11 +12,11 @@ save_path = 'D:\Curved_crease_antennas\sphericalFlasher\crease_convergence\';
 A = 115/2/1000; % 4 in
 N = 8;
 h = 0.8/1000; % layer thickness
-n = 40; % total subdivisions
+n = 30; % total subdivisions
 R = 507/2/1000; % outer radius as measured
 c = 1/(4*118.11/1000); %6e-2 % 4.65in focus to vertex
 %c = 0;
-iter = 20;
+iter = 500;
 l = (R-A)/n/sqrt(3);
 
 % % FLUTE
@@ -77,12 +77,27 @@ rot     = [ cos(beta), -sin(beta), 0;...
             sin(beta), cos(beta), 0;...
             0, 0, 1];
 
-[vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, cone_idx] = generateMesh(A, N, h, n, R, c, 1);
+[vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, cone_idx] = generateMesh(A, N, h, n, R, c, 0);
+%%
+adj_faces = cell(length(edges), 1);
+% rearrange how faces are stored
+for i = 1:length(edges)
+        p1_index = edges(i, 1);
+        p2_index = edges(i, 2);
+        
+        % Bending forces
+        faces_with_node1        = (faces(:, 1) == p1_index) | (faces(:, 2) == p1_index) | (faces(:, 3) == p1_index);
+        faces_with_node2        = (faces(:, 1) == p2_index) | (faces(:, 2) == p2_index) | (faces(:, 3) == p2_index);
+        faces_adjacent_to_edge  = faces((faces_with_node1 & faces_with_node2), :);
+        
+        adj_faces{i} = faces_adjacent_to_edge(~ismember(faces_adjacent_to_edge,[p1_index p2_index]));
+end
+
 
 
 %%
-lengths     = getEdgeLengths(vert_u(:, 1:3)', edges);
-lengths_p   = getEdgeLengths(vert_f', edges);
+lengths     = getEdgeLengths(vert_u(:, 1:3), edges);
+lengths_p   = getEdgeLengths(vert_f, edges);
 error       = (lengths - lengths_p)./lengths_p*100;
 
 figure();
@@ -90,7 +105,7 @@ plot(1:length(edges), error, 'o--')
 xlabel('Edge index')
 ylabel('Length error (percent)')
 
-angles = foldedCreaseAngles(vert_ref', vert_u', edges, faces);
+angles = foldedCreaseAngles_fast(vert_u, vert_ref, edges, adj_faces);
 angles = sign(angles)*pi - angles;
 angles(angles==0) = pi;
 
@@ -132,7 +147,7 @@ for i = 1:iter
         disp("converged")
         break
     end
-    [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_Step_parabolic(p_u, p_f, v_u, v_f, vert_ref, labels, edges, faces, dt, geo, mass, i, stat_idxs, outer_idx, R, cone_idx);
+    [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_Step_parabolic(p_u, p_f, v_u, v_f, vert_ref, labels, edges, adj_faces, dt, geo, mass, i, stat_idxs, outer_idx, R, cone_idx);
     
     % Store Energy
     E_cr(i) = sum(E_crease);
@@ -191,8 +206,8 @@ set(gca, "FontSize", 18)
 
 
 %% Get edge lengths and angles
-lengths     = getEdgeLengths(vert_u(:, 1:3, end)', edges);
-lengths_p   = getEdgeLengths(vert_f(:, :, end)', edges);
+lengths     = getEdgeLengths(vert_u(:, 1:3, end), edges);
+lengths_p   = getEdgeLengths(vert_f(:, :, end), edges);
 error       = (lengths - lengths_p)./lengths_p*100;
 
 figure();
@@ -200,35 +215,35 @@ plot(1:length(edges), error, 'o--')
 xlabel('Edge index')
 ylabel('Length error (percent)')
 
-angles = foldedCreaseAngles(vert_u(:, :, end)', vert_f(:, :, end)', edges, faces);
+angles = foldedCreaseAngles_fast(vert_f(:, :, end), vert_u(:, :, end), edges, adj_faces);
 angles = sign(angles)*pi - angles;
 angles(angles==0) = pi;
 
-%% plot deployed
-deployed = figure('Color', [1 1 1]);
-for i = 0:(N-1)
-    deployed = plot3dNodesEdges((rot^i*vert_u(:, :, end)'), edges, angles, deployed);
-    patch('faces',faces(:,1:3),'vertices',(rot^i*vert_u(:, 1:3, end)')', ...
-        'facecolor',[0.7 0.7 0.7], 'facealpha', 0.6, ...
-        'edgecolor',[1,0,0], 'edgealpha', 0.00) ;
-end
-axis equal; axis tight; axis off
-
-ax = gca; ax.Clipping = 'off';
-
-%% plot folded
-stowed = figure('Color', [1 1 1]);
-inner = [];
-for i = 0:(N-1)
-    stowed = plot3dNodesEdges((rot^i*vert_f(:, 1:3, end)'), edges, angles, stowed);
-    hold on
-    patch('faces',faces(:,1:3),'vertices',(rot^i*vert_f(:, 1:3, end)')', ...
-        'facecolor',[0.7 0.7 0.7], 'facealpha', 0.4, ...
-        'edgecolor',[1,0,0], 'edgealpha', 0) ;
-end
-axis equal; axis tight; axis off
-
-ax = gca; ax.Clipping = 'off';
+% %% plot deployed
+% deployed = figure('Color', [1 1 1]);
+% for i = 0:(N-1)
+%     deployed = plot3dNodesEdges((rot^i*vert_u(:, :, end)'), edges, angles, deployed);
+%     patch('faces',faces(:,1:3),'vertices',(rot^i*vert_u(:, 1:3, end)')', ...
+%         'facecolor',[0.7 0.7 0.7], 'facealpha', 0.6, ...
+%         'edgecolor',[1,0,0], 'edgealpha', 0.00) ;
+% end
+% axis equal; axis tight; axis off
+% 
+% ax = gca; ax.Clipping = 'off';
+% 
+% %% plot folded
+% stowed = figure('Color', [1 1 1]);
+% inner = [];
+% for i = 0:(N-1)
+%     stowed = plot3dNodesEdges((rot^i*vert_f(:, 1:3, end)'), edges, angles, stowed);
+%     hold on
+%     patch('faces',faces(:,1:3),'vertices',(rot^i*vert_f(:, 1:3, end)')', ...
+%         'facecolor',[0.7 0.7 0.7], 'facealpha', 0.4, ...
+%         'edgecolor',[1,0,0], 'edgealpha', 0) ;
+% end
+% axis equal; axis tight; axis off
+% 
+% ax = gca; ax.Clipping = 'off';
 
 %% Save major fold lines
 
@@ -250,9 +265,9 @@ if save_on
     major_m_f = sortrows([major_m_f, order], 4);
     %major_m_f = major_m_f(order, :)
     
-    save(fullfile(save_path, sprintf("major_folds_v4_n%d_N%d_c0.mat", [n, N])), 'major_v_u', 'major_v_f', 'major_m_u', 'major_m_f');
-    writematrix(major_v_u(:, 1:2), fullfile(save_path, sprintf('major_v_u_v4_n%d_N%d_c0.csv', [n, N])));
-    writematrix(major_m_u(:, 1:2), fullfile(save_path, sprintf('major_m_u_v4_n%d_N%d_c0.csv', [n, N])));
+    save(fullfile(save_path, sprintf("major_folds_init_n%d_N%d.mat", [n, N])), 'major_v_u', 'major_v_f', 'major_m_u', 'major_m_f');
+    writematrix(major_v_u(:, 1:2), fullfile(save_path, sprintf('major_v_u_init_n%d_N%d.csv', [n, N])));
+    writematrix(major_m_u(:, 1:2), fullfile(save_path, sprintf('major_m_u_init_n%d_N%d.csv', [n, N])));
     
     inner_idxs = vert_u(stat_idxs([1, end:-1:2]), :, end);
     hexagon = inner_idxs;
@@ -263,15 +278,15 @@ if save_on
     
     hexagon = [hexagon; hexagon(1, :)];
     
-    writematrix(hexagon(:, 1:2), fullfile(save_path, sprintf('inner_hexagon_v4_n%d_N%d_c0.csv', [n, N])));
-    save(fullfile(save_path, sprintf("120524_converge_v4_n%d_N%d_c0.mat", [n, N])));
+    writematrix(hexagon(:, 1:2), fullfile(save_path, sprintf('inner_hexagon_init_n%d_N%d.csv', [n, N])));
+    save(fullfile(save_path, sprintf("120524_converge_init_n%d_N%d.mat", [n, N])));
 end
 
 %% Generate unified mesh (This takes a while)
 % [unfolded, edges_one, faces_one] = makeFullMesh(vert_u(:, :, end), edges, faces, rot, N);
 % [folded, ~, ~] = makeFullMesh(vert_f(:, :, end), edges, faces, rot, N);
 % 
-% angles_one = foldedCreaseAngles(unfolded', folded', edges_one, faces_one);
+% angles_one = foldedCreaseAngles(unfolded, folded, edges_one, faces_one);
 % angles_one = sign(angles_one)*pi - angles_one;
 % angles_one(angles_one==0) = pi;
 %

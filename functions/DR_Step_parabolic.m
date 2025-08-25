@@ -1,18 +1,21 @@
-function [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_Step_parabolic(p_u, p_f, v_u, v_f, ref, labels, edges, tria1, dt, geo, mass, i, stat_idxs, outer_idx, outer_R, cone_idx)
+function [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_Step_parabolic(p_u, p_f, v_u, v_f, ref, labels, edges, adj_faces, dt, geo, mass, i, stat_idxs, outer_idx, outer_R, cone_idx)
     beta    = 2*pi()/geo.N;
 
-    angles_u = foldedCreaseAngles(ref', p_u', edges, tria1);
-    lengths_u     = getEdgeLengths(p_u(:, 1:3)', edges);
+    angles_u = foldedCreaseAngles_fast(p_u, ref, edges, adj_faces);
+    lengths_u     = getEdgeLengths(p_u, edges);
 
-    lengths_f   = getEdgeLengths(p_f', edges);
+    lengths_f   = getEdgeLengths(p_f, edges);
 
     % unfolded
-    [F_axial_u, ~, ~, ~, F_damping_u] = getDRForces(p_u, ref, edges, tria1, geo.k_axial, geo.k_fold, lengths_f, zeros(length(lengths_f)), geo.gamma, v_u, mass);
+    %[F_axial_u, ~, ~, ~, F_damping_u] = getDRForces(p_u, ref, edges, adj_faces, geo.k_axial, geo.k_fold, lengths_f, zeros(length(lengths_f), 1), geo.gamma, v_u, mass);
+    [F_axial_u, ~, ~, ~, F_damping_u] = getDRForces_fast(p_u, ref, edges, adj_faces, geo.k_axial, geo.k_fold, lengths_f, zeros(length(lengths_f), 1), geo.gamma, v_u, mass);
 
     a_u = (F_axial_u + F_damping_u)./mass;
 
     % folded
-    [F_axial_f, E_axial, F_crease_f, E_crease, F_damping_f] = getDRForces(p_f, ref, edges, tria1, geo.k_axial, geo.k_fold, lengths_u, angles_u, geo.gamma, v_f, mass);
+    %[F_axial_f_old, E_axial_old, F_crease_f_old, E_crease_old, F_damping_f_old] = getDRForces(p_f, ref, edges, adj_faces, geo.k_axial, geo.k_fold, lengths_u, angles_u, geo.gamma, v_f, mass);
+
+    [F_axial_f, E_axial, F_crease_f, E_crease, F_damping_f] = getDRForces_fast(p_f, ref, edges, adj_faces, geo.k_axial, geo.k_fold, lengths_u, angles_u, geo.gamma, v_f, mass);
 
     a_f = (F_axial_f + F_damping_f + F_crease_f)./mass;
 

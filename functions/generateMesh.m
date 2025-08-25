@@ -38,7 +38,7 @@ function [vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, 
     % gore 1
     end_edge_d = norm(v_plane(:, end)-m_plane(:, end));
     end_n = round(end_edge_d/((R-A)/n))+1;
-    end_theta = angleBetweenVectors(v_plane(:, end), m_plane(:, end));
+    end_theta = angleBetweenVectors(v_plane(:, end)', m_plane(:, end)');
     end_thetas = linspace(0, end_theta, end_n);
     end_edge = [];
     for i = 2:(end_n-1)
@@ -104,7 +104,7 @@ function [vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, 
     
     end_edge_d = norm(rot*v_plane(:, end)-m_plane(:, end));
     end_n = round(end_edge_d/((R-A)/n))+1;
-    end_theta = angleBetweenVectors(rot*v_plane(:, end), m_plane(:, end));
+    end_theta = angleBetweenVectors((rot*v_plane(:, end))', m_plane(:, end)');
     end_thetas = linspace(0, end_theta, end_n);
     end_edge = [];
     for i = 2:(end_n-1)
@@ -286,13 +286,14 @@ function [vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, 
     
     theta_v = 0;
     theta_m = 0;
+    options = optimoptions('fmincon', 'Display', 'off');
     for i = 2:n
         dist_v = norm(v_plane_p(:, i-1)-v_plane_p(:, i));
         dist_m = norm(m_plane_p(:, i-1)-m_plane_p(:, i));
         fun_v = @(theta) (dist_v - norm(v_folded(:, i-1)-v_spiral(theta)))^2;
-        th_v = fmincon(fun_v, theta_v(end)+beta, [], [], [], [], theta_v(end), theta_v(end)+beta);
+        th_v = fmincon(fun_v, theta_v(end)+beta, [], [], [], [], theta_v(end), theta_v(end)+beta, [], options);
         fun_m = @(theta) (dist_m - norm(m_folded(:, i-1)-m_spiral(theta)-[0;0;theta*delta_z/beta]))^2;
-        th_m = fmincon(fun_m, theta_m(end)+beta, [], [], [], [], theta_m(end), theta_m(end)+beta);
+        th_m = fmincon(fun_m, theta_m(end)+beta, [], [], [], [], theta_m(end), theta_m(end)+beta, [], options);
         v_folded(:, i) = v_spiral(th_v);
         m_folded(:, i) = m_spiral(th_m) + [0;0;th_m*delta_z/beta];
         theta_v = [theta_v, th_v];
@@ -305,7 +306,7 @@ function [vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, 
     for i = (n+1):n_ext
         dist_m = norm(m_plane_ext_p(:, i-1)-m_plane_ext_p(:, i));
         fun_m = @(theta) (dist_m - norm(m_folded_ext(:, i-1)-m_spiral(theta)-[0;0;theta*delta_z/beta]))^2;
-        th_m = fmincon(fun_m, theta_ext_m(end)+beta, [], [], [], [], theta_ext_m(end), theta_ext_m(end)+beta);
+        th_m = fmincon(fun_m, theta_ext_m(end)+beta, [], [], [], [], theta_ext_m(end), theta_ext_m(end)+beta, [], options);
         m_folded_ext(:, i) = m_spiral(th_m) + [0;0;th_m*delta_z/beta];
         theta_ext_m = [theta_ext_m, th_m];
     end
@@ -540,16 +541,16 @@ function [vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, 
 end
 
 function alphas = getAlphas(nodes, faces)
-    nodes = nodes';
+    nodes = nodes;
     alphas = zeros(size(faces));
     for i = 1:length(faces)
         p1_index = faces(i, 1);
         p2_index = faces(i, 2);
         p3_index = faces(i, 3);
 
-        p1 = nodes(1:3, p1_index);
-        p2 = nodes(1:3, p2_index);
-        p3 = nodes(1:3, p3_index);
+        p1 = nodes(p1_index, :);
+        p2 = nodes(p2_index, :);
+        p3 = nodes(p3_index, :);
 
         alpha1 = angleBetweenVectors3d(p2-p1, p3-p1);
         alpha2 = angleBetweenVectors3d(p1-p2, p3-p2);
