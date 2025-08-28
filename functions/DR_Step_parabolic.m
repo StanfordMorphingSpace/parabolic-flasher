@@ -2,6 +2,7 @@ function [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_St
     beta    = 2*pi()/geo.N;
 
     angles_u = foldedCreaseAngles_fast(p_u, ref, edges, adj_faces);
+    %angles_f = foldedCreaseAngles_fast(p_f, p_u, edges, adj_faces);
     lengths_u     = getEdgeLengths(p_u, edges);
 
     lengths_f   = getEdgeLengths(p_f, edges);

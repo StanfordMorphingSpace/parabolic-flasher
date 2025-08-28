@@ -12,11 +12,11 @@ save_path = 'D:\Curved_crease_antennas\sphericalFlasher\crease_convergence\';
 A = 115/2/1000; % 4 in
 N = 8;
 h = 0.8/1000; % layer thickness
-n = 30; % total subdivisions
+n = 40; % total subdivisions
 R = 507/2/1000; % outer radius as measured
 c = 1/(4*118.11/1000); %6e-2 % 4.65in focus to vertex
 %c = 0;
-iter = 500;
+iter = 30000;
 l = (R-A)/n/sqrt(3);
 
 % % FLUTE
@@ -79,7 +79,7 @@ rot     = [ cos(beta), -sin(beta), 0;...
 
 [vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, cone_idx] = generateMesh(A, N, h, n, R, c, 0);
 %%
-adj_faces = cell(length(edges), 1);
+adj_face = cell(length(edges), 1);
 % rearrange how faces are stored
 for i = 1:length(edges)
         p1_index = edges(i, 1);
@@ -90,9 +90,29 @@ for i = 1:length(edges)
         faces_with_node2        = (faces(:, 1) == p2_index) | (faces(:, 2) == p2_index) | (faces(:, 3) == p2_index);
         faces_adjacent_to_edge  = faces((faces_with_node1 & faces_with_node2), :);
         
-        adj_faces{i} = faces_adjacent_to_edge(~ismember(faces_adjacent_to_edge,[p1_index p2_index]));
+        adj_face{i} = faces_adjacent_to_edge(~ismember(faces_adjacent_to_edge,[p1_index p2_index]));
 end
 
+% Only keep edges with 2 adjacent faces
+mask = cellfun(@(x) numel(x)==2, adj_face);
+creaseEdges = edges(mask,:);
+creaseIdx   = find(mask);
+
+if isempty(creaseIdx)
+    F_crease = zeros(nNodes,3);
+    E_crease = zeros(nEdges,1);
+    return;
+end
+
+% Build adjacency matrix safely
+adj_mat = cell2mat(cellfun(@(x) x(:).', adj_face(mask), 'UniformOutput', false));
+
+adj_faces.creaseEdges = creaseEdges;
+adj_faces.creaseIdx = creaseIdx;
+adj_faces.adj_mat = adj_mat;
+adj_faces.mask = mask;
+
+nNodes = length(vert_u);
 
 
 %%
@@ -130,12 +150,18 @@ end
 geo.k_fold = k_fold;
 
 p_f = vert_f(:, 1:3);
-accel_f = zeros(size(vert_f(:, 1:3)));
-v_f = zeros(length(vert_f), 3); % initial velocity = 0
+v_f = zeros(nNodes, 3); % initial velocity = 0
 
 p_u = vert_u(:, 1:3);
-accel_u = zeros(size(vert_u(:, 1:3)));
-v_u = zeros(length(vert_u), 3); % initial velocity = 0
+v_u = zeros(nNodes, 3); % initial velocity = 0
+
+vert_u = zeros(nNodes, 3, iter+1);
+vert_u(:, :, 1) = p_u;
+vert_f = zeros(nNodes, 3, iter+1);
+vert_f(:, :, 1) = p_f;
+
+accel_u = zeros(nNodes, 3, iter+1);
+accel_f = zeros(nNodes, 3, iter+1);
 
 E_cr = zeros(1, iter);
 E_ax = zeros(1, iter);
@@ -157,11 +183,11 @@ for i = 1:iter
     E_diff = abs(E_cr(i)+E_ax(i)+E_v(i)-E_tot_prev);
     E_tot_prev = E_cr(i)+E_ax(i)+E_v(i);
 
-    vert_f = cat(3, vert_f, p_f);
-    accel_f = cat(3, accel_f, a_f);
+    vert_f(:, :, i+1) = p_f;
+    accel_f(:, :, i+1) = a_f;
 
-    vert_u = cat(3, vert_u, p_u);
-    accel_u = cat(3, accel_u, a_u);
+    vert_u(:, :, i+1) = p_u;
+    accel_u(:, :, i+1) = a_u;
 end
 
 end_incr = i;
@@ -169,51 +195,51 @@ end_incr = i;
 toc
 
 %% Plot Energies
-
-figure;
-plot(1:length(E_ax), E_ax, "LineWidth", 2)
-set(gca, 'YScale', 'log')
-xlabel("Iterations")
-ylabel("Total Stretching Energy [J]")
-grid on
-set(gca, "FontSize", 18)
-
-figure;
-plot(1:length(E_cr), E_cr, "LineWidth", 2)
-set(gca, 'YScale', 'log')
-xlabel("Iterations")
-ylabel("Total Bending Energy [J]")
-grid on
-set(gca, "FontSize", 18)
-
-
-figure;
-plot(1:length(E_v), E_v, "LineWidth", 2)
-set(gca, 'YScale', 'log')
-xlabel("Iterations")
-ylabel("Total Kinetic Energy [J]")
-grid on
-set(gca, "FontSize", 18)
-
-
-figure;
-plot(1:length(E_v), E_ax+E_cr+E_v, "LineWidth", 2)
-set(gca, 'YScale', 'log')
-xlabel("Iterations")
-ylabel("Total Energy [J]")
-grid on
-set(gca, "FontSize", 18)
+% 
+% figure;
+% plot(1:length(E_ax), E_ax, "LineWidth", 2)
+% set(gca, 'YScale', 'log')
+% xlabel("Iterations")
+% ylabel("Total Stretching Energy [J]")
+% grid on
+% set(gca, "FontSize", 18)
+% 
+% figure;
+% plot(1:length(E_cr), E_cr, "LineWidth", 2)
+% set(gca, 'YScale', 'log')
+% xlabel("Iterations")
+% ylabel("Total Bending Energy [J]")
+% grid on
+% set(gca, "FontSize", 18)
+% 
+% 
+% figure;
+% plot(1:length(E_v), E_v, "LineWidth", 2)
+% set(gca, 'YScale', 'log')
+% xlabel("Iterations")
+% ylabel("Total Kinetic Energy [J]")
+% grid on
+% set(gca, "FontSize", 18)
+% 
+% 
+% figure;
+% plot(1:length(E_v), E_ax+E_cr+E_v, "LineWidth", 2)
+% set(gca, 'YScale', 'log')
+% xlabel("Iterations")
+% ylabel("Total Energy [J]")
+% grid on
+% set(gca, "FontSize", 18)
 
 
 %% Get edge lengths and angles
 lengths     = getEdgeLengths(vert_u(:, 1:3, end), edges);
 lengths_p   = getEdgeLengths(vert_f(:, :, end), edges);
 error       = (lengths - lengths_p)./lengths_p*100;
-
-figure();
-plot(1:length(edges), error, 'o--')
-xlabel('Edge index')
-ylabel('Length error (percent)')
+% 
+% figure();
+% plot(1:length(edges), error, 'o--')
+% xlabel('Edge index')
+% ylabel('Length error (percent)')
 
 angles = foldedCreaseAngles_fast(vert_f(:, :, end), vert_u(:, :, end), edges, adj_faces);
 angles = sign(angles)*pi - angles;
