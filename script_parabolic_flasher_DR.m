@@ -16,8 +16,9 @@ n = 40; % total subdivisions
 R = 507/2/1000; % outer radius as measured
 c = 1/(4*118.11/1000); %6e-2 % 4.65in focus to vertex
 %c = 0;
-iter = 30000;
+iter = 1000;
 l = (R-A)/n/sqrt(3);
+rib_d = 0.01;
 
 % % FLUTE
 % A = 1.5; % 
@@ -77,7 +78,7 @@ rot     = [ cos(beta), -sin(beta), 0;...
             sin(beta), cos(beta), 0;...
             0, 0, 1];
 
-[vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, cone_idx] = generateMesh(A, N, h, n, R, c, 0);
+[vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, cone_idx] = generateMesh_ribs(A, N, h, n, R, c, 1, rib_d);
 %%
 adj_face = cell(length(edges), 1);
 % rearrange how faces are stored
@@ -195,81 +196,81 @@ end_incr = i;
 toc
 
 %% Plot Energies
-% 
-% figure;
-% plot(1:length(E_ax), E_ax, "LineWidth", 2)
-% set(gca, 'YScale', 'log')
-% xlabel("Iterations")
-% ylabel("Total Stretching Energy [J]")
-% grid on
-% set(gca, "FontSize", 18)
-% 
-% figure;
-% plot(1:length(E_cr), E_cr, "LineWidth", 2)
-% set(gca, 'YScale', 'log')
-% xlabel("Iterations")
-% ylabel("Total Bending Energy [J]")
-% grid on
-% set(gca, "FontSize", 18)
-% 
-% 
-% figure;
-% plot(1:length(E_v), E_v, "LineWidth", 2)
-% set(gca, 'YScale', 'log')
-% xlabel("Iterations")
-% ylabel("Total Kinetic Energy [J]")
-% grid on
-% set(gca, "FontSize", 18)
-% 
-% 
-% figure;
-% plot(1:length(E_v), E_ax+E_cr+E_v, "LineWidth", 2)
-% set(gca, 'YScale', 'log')
-% xlabel("Iterations")
-% ylabel("Total Energy [J]")
-% grid on
-% set(gca, "FontSize", 18)
+
+figure;
+plot(1:length(E_ax), E_ax, "LineWidth", 2)
+set(gca, 'YScale', 'log')
+xlabel("Iterations")
+ylabel("Total Stretching Energy [J]")
+grid on
+set(gca, "FontSize", 18)
+
+figure;
+plot(1:length(E_cr), E_cr, "LineWidth", 2)
+set(gca, 'YScale', 'log')
+xlabel("Iterations")
+ylabel("Total Bending Energy [J]")
+grid on
+set(gca, "FontSize", 18)
+
+
+figure;
+plot(1:length(E_v), E_v, "LineWidth", 2)
+set(gca, 'YScale', 'log')
+xlabel("Iterations")
+ylabel("Total Kinetic Energy [J]")
+grid on
+set(gca, "FontSize", 18)
+
+
+figure;
+plot(1:length(E_v), E_ax+E_cr+E_v, "LineWidth", 2)
+set(gca, 'YScale', 'log')
+xlabel("Iterations")
+ylabel("Total Energy [J]")
+grid on
+set(gca, "FontSize", 18)
 
 
 %% Get edge lengths and angles
 lengths     = getEdgeLengths(vert_u(:, 1:3, end), edges);
 lengths_p   = getEdgeLengths(vert_f(:, :, end), edges);
 error       = (lengths - lengths_p)./lengths_p*100;
-% 
-% figure();
-% plot(1:length(edges), error, 'o--')
-% xlabel('Edge index')
-% ylabel('Length error (percent)')
+
+figure();
+plot(1:length(edges), error, 'o--')
+xlabel('Edge index')
+ylabel('Length error (percent)')
 
 angles = foldedCreaseAngles_fast(vert_f(:, :, end), vert_u(:, :, end), edges, adj_faces);
 angles = sign(angles)*pi - angles;
 angles(angles==0) = pi;
 
-% %% plot deployed
-% deployed = figure('Color', [1 1 1]);
-% for i = 0:(N-1)
-%     deployed = plot3dNodesEdges((rot^i*vert_u(:, :, end)'), edges, angles, deployed);
-%     patch('faces',faces(:,1:3),'vertices',(rot^i*vert_u(:, 1:3, end)')', ...
-%         'facecolor',[0.7 0.7 0.7], 'facealpha', 0.6, ...
-%         'edgecolor',[1,0,0], 'edgealpha', 0.00) ;
-% end
-% axis equal; axis tight; axis off
-% 
-% ax = gca; ax.Clipping = 'off';
-% 
-% %% plot folded
-% stowed = figure('Color', [1 1 1]);
-% inner = [];
-% for i = 0:(N-1)
-%     stowed = plot3dNodesEdges((rot^i*vert_f(:, 1:3, end)'), edges, angles, stowed);
-%     hold on
-%     patch('faces',faces(:,1:3),'vertices',(rot^i*vert_f(:, 1:3, end)')', ...
-%         'facecolor',[0.7 0.7 0.7], 'facealpha', 0.4, ...
-%         'edgecolor',[1,0,0], 'edgealpha', 0) ;
-% end
-% axis equal; axis tight; axis off
-% 
-% ax = gca; ax.Clipping = 'off';
+%% plot deployed
+deployed = figure('Color', [1 1 1]);
+for i = 0:0
+    deployed = plot3dNodesEdges((rot^i*vert_u(:, :, end)'), edges, angles, deployed);
+    patch('faces',faces(:,1:3),'vertices',(rot^i*vert_u(:, 1:3, end)')', ...
+        'facecolor',[0.7 0.7 0.7], 'facealpha', 0.6, ...
+        'edgecolor',[1,0,0], 'edgealpha', 0.00) ;
+end
+axis equal; axis tight; axis off
+
+ax = gca; ax.Clipping = 'off';
+
+%% plot folded
+stowed = figure('Color', [1 1 1]);
+inner = [];
+for i = 0:0
+    stowed = plot3dNodesEdges((rot^i*vert_f(:, 1:3, end)'), edges, angles, stowed);
+    hold on
+    patch('faces',faces(:,1:3),'vertices',(rot^i*vert_f(:, 1:3, end)')', ...
+        'facecolor',[0.7 0.7 0.7], 'facealpha', 0.4, ...
+        'edgecolor',[1,0,0], 'edgealpha', 0) ;
+end
+axis equal; axis tight; axis off
+
+ax = gca; ax.Clipping = 'off';
 
 %% Save major fold lines
 
