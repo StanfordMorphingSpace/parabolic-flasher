@@ -6,6 +6,10 @@ n = varargin{1}{1}{2};
 cone_idx = varargin{1}{1}{3};
 c = varargin{1}{1}{5};
 inner_fixed_node_indices = varargin{1}{1}{6};
+rib_n = varargin{1}{1}{7};
+if rib_n>0
+    inner_fixed_node_indices((end-rib_n+2):end) = [];
+end
 % Also why not constr valley nodes?
 inner_fixed_node_indices = inner_fixed_node_indices(isnan(labels(inner_fixed_node_indices)));
 

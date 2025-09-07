@@ -5,20 +5,23 @@ tic
 % add all subfolders
 addpath(genpath(pwd))
 
-save_on = 0;
-save_path = 'D:\Curved_crease_antennas\sphericalFlasher\crease_convergence\';
+save_on = 1;
+plot_on = 1;
+save_path = "D:\Curved_crease_antennas\SciTech_2026\ribs_results";
 
 % wildtronics dish
 A = 115/2/1000; % 4 in
 N = 8;
 h = 0.8/1000; % layer thickness
-n = 40; % total subdivisions
+n = 60; % total subdivisions
 R = 507/2/1000; % outer radius as measured
-c = 1/(4*118.11/1000); %6e-2 % 4.65in focus to vertex
+c = 0.25*1/(4*118.11/1000); %6e-2 % 4.65in focus to vertex
 %c = 0;
-iter = 1000;
+iter = 10000;
+rib_d = 0.015;
+
 l = (R-A)/n/sqrt(3);
-rib_d = 0.01;
+rib_n = max(round(rib_d/((R-A)/n))+1, 2);
 
 % % FLUTE
 % A = 1.5; % 
@@ -78,7 +81,7 @@ rot     = [ cos(beta), -sin(beta), 0;...
             sin(beta), cos(beta), 0;...
             0, 0, 1];
 
-[vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, cone_idx] = generateMesh_ribs(A, N, h, n, R, c, 1, rib_d);
+[vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, cone_idx] = generateMesh_ribs(A, N, h, n, R, c, 0, rib_d);
 %%
 adj_face = cell(length(edges), 1);
 % rearrange how faces are stored
@@ -108,13 +111,32 @@ end
 % Build adjacency matrix safely
 adj_mat = cell2mat(cellfun(@(x) x(:).', adj_face(mask), 'UniformOutput', false));
 
-adj_faces.creaseEdges = creaseEdges;
 adj_faces.creaseIdx = creaseIdx;
 adj_faces.adj_mat = adj_mat;
 adj_faces.mask = mask;
 
 nNodes = length(vert_u);
 
+% fix normals
+focal_point = [0, 0, 1/(c*4)];
+
+p1    = vert_u(creaseEdges(:,1), :);
+p2    = vert_u(creaseEdges(:,2), :);
+p3_1  = vert_u(adj_mat(:,1), :);
+p3_2  = vert_u(adj_mat(:,2), :);
+
+e = p2 - p1;
+e = e ./ vecnorm(e,2,2);
+
+n1 = cross(p2 - p1, p3_1 - p1, 2);
+n2 = cross(p3_2 - p1, p2 - p1, 2);
+
+n1 = n1 ./ vecnorm(n1,2,2);
+n2 = n2 ./ vecnorm(n2,2,2);
+
+ref = focal_point-p1;
+creaseEdges(dot(ref, n1, 2) < 0, :) = flip(creaseEdges(dot(ref, n1, 2) < 0, :), 2);
+adj_faces.creaseEdges = creaseEdges;
 
 %%
 lengths     = getEdgeLengths(vert_u(:, 1:3), edges);
@@ -126,7 +148,9 @@ plot(1:length(edges), error, 'o--')
 xlabel('Edge index')
 ylabel('Length error (percent)')
 
-angles = foldedCreaseAngles_fast(vert_u, vert_ref, edges, adj_faces);
+angles_f = foldedCreaseAngles_fast(vert_f, vert_u, edges, adj_faces);
+angles_u = foldedCreaseAngles_fast(vert_u, vert_f, edges, adj_faces);
+angles = mod((angles_f - angles_u) + pi, 2*pi) - pi;
 angles = sign(angles)*pi - angles;
 angles(angles==0) = pi;
 
@@ -138,15 +162,25 @@ figure(fig_deployed)
 mass = mass_scalar*ones(length(vert_u), 1);
 
 k_fold = geo.k_fold*ones(length(edges), 1);
+% for i = 1:length(edges)
+%     p1 = edges(i, 1);
+%     p2 = edges(i, 2);
+%     if labels(p1) > n && labels(p2) > n % mountain
+%         k_fold(i) = 0;
+%     elseif (labels(p1) == 1 && labels(p2) > n) || (labels(p2) == 1 && labels(p1) > n)
+%         k_fold(i) = 0;
+%     end
+% end
+
 for i = 1:length(edges)
     p1 = edges(i, 1);
     p2 = edges(i, 2);
-    if labels(p1) > n && labels(p2) > n
-        k_fold(i) = 0;
-    elseif (labels(p1) == 1 && labels(p2) > n) || (labels(p2) == 1 && labels(p1) > n)
+    if ~isnan(labels(p1)) && ~isnan(labels(p2))
         k_fold(i) = 0;
     end
 end
+
+k_fold(~mask) = 0;
 
 geo.k_fold = k_fold;
 
@@ -174,7 +208,7 @@ for i = 1:iter
         disp("converged")
         break
     end
-    [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_Step_parabolic(p_u, p_f, v_u, v_f, vert_ref, labels, edges, adj_faces, dt, geo, mass, i, stat_idxs, outer_idx, R, cone_idx);
+    [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_Step_parabolic(p_u, p_f, v_u, v_f, vert_ref, labels, edges, adj_faces, dt, geo, mass, i, stat_idxs, outer_idx, R, cone_idx, n, rib_n, rib_d);
     
     % Store Energy
     E_cr(i) = sum(E_crease);
@@ -197,39 +231,42 @@ toc
 
 %% Plot Energies
 
-figure;
-plot(1:length(E_ax), E_ax, "LineWidth", 2)
-set(gca, 'YScale', 'log')
-xlabel("Iterations")
-ylabel("Total Stretching Energy [J]")
-grid on
-set(gca, "FontSize", 18)
+if plot_on
 
-figure;
-plot(1:length(E_cr), E_cr, "LineWidth", 2)
-set(gca, 'YScale', 'log')
-xlabel("Iterations")
-ylabel("Total Bending Energy [J]")
-grid on
-set(gca, "FontSize", 18)
-
-
-figure;
-plot(1:length(E_v), E_v, "LineWidth", 2)
-set(gca, 'YScale', 'log')
-xlabel("Iterations")
-ylabel("Total Kinetic Energy [J]")
-grid on
-set(gca, "FontSize", 18)
-
-
-figure;
-plot(1:length(E_v), E_ax+E_cr+E_v, "LineWidth", 2)
-set(gca, 'YScale', 'log')
-xlabel("Iterations")
-ylabel("Total Energy [J]")
-grid on
-set(gca, "FontSize", 18)
+    figure;
+    plot(1:length(E_ax), E_ax, "LineWidth", 2)
+    set(gca, 'YScale', 'log')
+    xlabel("Iterations")
+    ylabel("Total Stretching Energy [J]")
+    grid on
+    set(gca, "FontSize", 18)
+    
+    figure;
+    plot(1:length(E_cr), E_cr, "LineWidth", 2)
+    set(gca, 'YScale', 'log')
+    xlabel("Iterations")
+    ylabel("Total Bending Energy [J]")
+    grid on
+    set(gca, "FontSize", 18)
+    
+    
+    figure;
+    plot(1:length(E_v), E_v, "LineWidth", 2)
+    set(gca, 'YScale', 'log')
+    xlabel("Iterations")
+    ylabel("Total Kinetic Energy [J]")
+    grid on
+    set(gca, "FontSize", 18)
+    
+    
+    figure;
+    plot(1:length(E_v), E_ax+E_cr+E_v, "LineWidth", 2)
+    set(gca, 'YScale', 'log')
+    xlabel("Iterations")
+    ylabel("Total Energy [J]")
+    grid on
+    set(gca, "FontSize", 18)
+end
 
 
 %% Get edge lengths and angles
@@ -242,40 +279,48 @@ plot(1:length(edges), error, 'o--')
 xlabel('Edge index')
 ylabel('Length error (percent)')
 
-angles = foldedCreaseAngles_fast(vert_f(:, :, end), vert_u(:, :, end), edges, adj_faces);
+angles_f = foldedCreaseAngles_fast(vert_f(:, :, end), vert_u(:, :, end), edges, adj_faces);
+angles_u = foldedCreaseAngles_fast(vert_u(:, :, end), vert_f(:, :, end), edges, adj_faces);
+angles = mod((angles_f - angles_u) + pi, 2*pi) - pi;
 angles = sign(angles)*pi - angles;
 angles(angles==0) = pi;
 
-%% plot deployed
-deployed = figure('Color', [1 1 1]);
-for i = 0:0
-    deployed = plot3dNodesEdges((rot^i*vert_u(:, :, end)'), edges, angles, deployed);
-    patch('faces',faces(:,1:3),'vertices',(rot^i*vert_u(:, 1:3, end)')', ...
-        'facecolor',[0.7 0.7 0.7], 'facealpha', 0.6, ...
-        'edgecolor',[1,0,0], 'edgealpha', 0.00) ;
-end
-axis equal; axis tight; axis off
+%% plotting
 
-ax = gca; ax.Clipping = 'off';
-
-%% plot folded
-stowed = figure('Color', [1 1 1]);
-inner = [];
-for i = 0:0
-    stowed = plot3dNodesEdges((rot^i*vert_f(:, 1:3, end)'), edges, angles, stowed);
+if plot_on
+    % plot deployed
+    deployed = figure('Color', [1 1 1]);
     hold on
-    patch('faces',faces(:,1:3),'vertices',(rot^i*vert_f(:, 1:3, end)')', ...
-        'facecolor',[0.7 0.7 0.7], 'facealpha', 0.4, ...
-        'edgecolor',[1,0,0], 'edgealpha', 0) ;
+    for i = 0:(n-1)
+        %deployed = plot3dNodesEdges((rot^i*vert_u(:, :, end)'), edges, angles, deployed);
+        patch('faces',faces(:,1:3),'vertices',(rot^i*vert_u(:, 1:3, end)')', ...
+            'facecolor',[0.7 0.7 0.7], 'facealpha', 0.6, ...
+            'edgecolor',[1,0,0], 'edgealpha', 1) ;
+    end
+    hold off
+    axis equal; axis tight; axis off
+    
+    ax = gca; ax.Clipping = 'off';
+    
+    % plot folded
+    stowed = figure('Color', [1 1 1]);
+    inner = [];
+    for i = 0:(n-1)
+        %stowed = plot3dNodesEdges((rot^i*vert_f(:, 1:3, end)'), edges, angles, stowed);
+        hold on
+        patch('faces',faces(:,1:3),'vertices',(rot^i*vert_f(:, 1:3, end)')', ...
+            'facecolor',[0.7 0.7 0.7], 'facealpha', 0.4, ...
+            'edgecolor',[1,0,0], 'edgealpha', 1) ;
+    end
+    hold off
+    axis equal; axis tight; axis off
+    
+    ax = gca; ax.Clipping = 'off';
 end
-axis equal; axis tight; axis off
-
-ax = gca; ax.Clipping = 'off';
 
 %% Save major fold lines
 
 if save_on
-
     major_v_u = vert_u(0 < labels & labels <= n, :, end);
     order = labels(0 < labels & labels <= n)-min(labels(0 < labels & labels <= n))+1;
     major_v_u = flip(sortrows([major_v_u, order], 4), 1);
@@ -292,9 +337,9 @@ if save_on
     major_m_f = sortrows([major_m_f, order], 4);
     %major_m_f = major_m_f(order, :)
     
-    save(fullfile(save_path, sprintf("major_folds_init_n%d_N%d.mat", [n, N])), 'major_v_u', 'major_v_f', 'major_m_u', 'major_m_f');
-    writematrix(major_v_u(:, 1:2), fullfile(save_path, sprintf('major_v_u_init_n%d_N%d.csv', [n, N])));
-    writematrix(major_m_u(:, 1:2), fullfile(save_path, sprintf('major_m_u_init_n%d_N%d.csv', [n, N])));
+    save(fullfile(save_path, sprintf("major_folds_quarter_n%d_N%d_rib%d.mat", [n, N, rib_d*1000])), 'major_v_u', 'major_v_f', 'major_m_u', 'major_m_f');
+    writematrix(major_v_u(:, 1:2), fullfile(save_path, sprintf('major_v_u_quarter_n%d_N%d_rib%d.csv', [n, N, rib_d*1000])));
+    writematrix(major_m_u(:, 1:2), fullfile(save_path, sprintf('major_m_u_quarter_n%d_N%d_rib%d.csv', [n, N, rib_d*1000])));
     
     inner_idxs = vert_u(stat_idxs([1, end:-1:2]), :, end);
     hexagon = inner_idxs;
@@ -305,8 +350,8 @@ if save_on
     
     hexagon = [hexagon; hexagon(1, :)];
     
-    writematrix(hexagon(:, 1:2), fullfile(save_path, sprintf('inner_hexagon_init_n%d_N%d.csv', [n, N])));
-    save(fullfile(save_path, sprintf("120524_converge_init_n%d_N%d.mat", [n, N])));
+    writematrix(hexagon(:, 1:2), fullfile(save_path, sprintf('inner_hexagon_quarter_n%d_N%d_rib%d.csv', [n, N, rib_d*1000])));
+    save(fullfile(save_path, sprintf("120524_converge_quarter_n%d_N%d_rib%d.mat", [n, N, rib_d*1000])));
 end
 
 %% Generate unified mesh (This takes a while)

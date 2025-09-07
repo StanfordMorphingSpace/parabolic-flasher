@@ -13,9 +13,9 @@ function fig = plot3dNodesEdges(nodes, edges, angles, varargin)
     for i = 1:nEdges        
         if isnan(angles(i))
             color = [0 0 0];        
-        elseif angles(i) > 0
+        elseif angles(i) > 0 % valley
             color = [0 0 1]; % + angles(i)/pi()*[0 1 1];
-        else
+        else                 % mountain
             color = [1 0 0]; % - angles(i)/pi()*[1 1 0];
         end
         

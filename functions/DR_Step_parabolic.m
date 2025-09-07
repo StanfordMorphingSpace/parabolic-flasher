@@ -1,4 +1,4 @@
-function [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_Step_parabolic(p_u, p_f, v_u, v_f, ref, labels, edges, adj_faces, dt, geo, mass, i, stat_idxs, outer_idx, outer_R, cone_idx)
+function [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_Step_parabolic(p_u, p_f, v_u, v_f, ref, labels, edges, adj_faces, dt, geo, mass, i, stat_idxs, outer_idx, outer_R, cone_idx, n, rib_n, rib_d)
     beta    = 2*pi()/geo.N;
 
     angles_u = foldedCreaseAngles_fast(p_u, ref, edges, adj_faces);
@@ -19,18 +19,19 @@ function [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_St
     [F_axial_f, E_axial, F_crease_f, E_crease, F_damping_f] = getDRForces_fast(p_f, ref, edges, adj_faces, geo.k_axial, geo.k_fold, lengths_u, angles_u, geo.gamma, v_f, mass);
 
     a_f = (F_axial_f + F_damping_f + F_crease_f)./mass;
+    %a_f = (F_axial_f + F_damping_f)./mass;
 
     for j = 1:length(stat_idxs) % exclude inner points so they stay fixed
-        if j > 2
-            stat_a = (a_f(stat_idxs(j), :) + a_u(stat_idxs(j), :))./2;
+        if j <= 2 || (rib_d > 0 && j > length(stat_idxs) - rib_n + 1)
+            stat_a = [0,0,0];            
         else
-            stat_a = [0,0,0];
+            stat_a = (a_f(stat_idxs(j), :) + a_u(stat_idxs(j), :))./2;
         end
         a_u(stat_idxs(j), :) = stat_a; %stat_a; 
         a_f(stat_idxs(j), :) = stat_a; %stat_a;
     end
 
-    [p_u, v_u, E_v_u] = makeStep(p_u, v_u, a_u, @getJacobian_u, @getb_u, labels, beta, i, mass, dt, {outer_idx, geo.c, outer_R});
-    [p_f, v_f, E_v_f] = makeStep(p_f, v_f, a_f, @getJacobian_f, @getb_f, labels, beta, i, mass, dt, {geo.h, geo.n, cone_idx, geo.A, geo.c, stat_idxs});
+    [p_u, v_u, E_v_u] = makeStep(p_u, v_u, a_u, @getJacobian_u, @getb_u, labels, beta, i, mass, dt, {outer_idx, geo.c, outer_R, n, rib_d, rib_n});
+    [p_f, v_f, E_v_f] = makeStep(p_f, v_f, a_f, @getJacobian_f, @getb_f, labels, beta, i, mass, dt, {geo.h, geo.n, cone_idx, geo.A, geo.c, stat_idxs, rib_n});
     
 end

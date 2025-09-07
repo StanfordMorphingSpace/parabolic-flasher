@@ -453,7 +453,7 @@ function [vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, 
     if rib_d > 0
         nNodes = length(vert_u);
         % unfolded
-        rib_n = round(rib_d/((R-A)/n))+1;
+        rib_n = max(round(rib_d/((R-A)/n))+1, 2);
         rib_nodes_u = zeros(3, length(v_plane_p)*(rib_n-1)); 
         rib_z = linspace(0, rib_d, rib_n);
         rib_edges = [];
@@ -464,11 +464,15 @@ function [vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, 
         end
 
         % folded
-        rib_n = round(rib_d/((R-A)/n))+1;
         rib_nodes_f = zeros(3, length(v_folded)*(rib_n-1)); 
-        rib_z = linspace(0, rib_d, rib_n);
         for j = 1:(rib_n-1)
             rib_nodes_f(:, ((j-1)*length(v_folded)+1):(j*length(v_folded))) = v_folded - [zeros(2, length(v_folded)); rib_z(j+1).*ones(1, length(v_folded))];
+        end
+
+        % ref
+        rib_nodes_ref = zeros(3, length(v_plane)*(rib_n-1)); 
+        for j = 1:(rib_n-1)
+            rib_nodes_ref(:, ((j-1)*length(v_plane)+1):(j*length(v_plane))) = v_plane - [zeros(2, length(v_plane)); rib_z(j+1).*ones(1, length(v_plane))];
         end
         
         rib_edges = [];
@@ -479,7 +483,7 @@ function [vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, 
             rib_edges = [rib_edges; idx1, nNodes+k; idx1, nNodes+k+1];
             rib_faces = [rib_faces; idx1, idx2, nNodes+k+1; idx1, nNodes+k+1, nNodes+k];
         end
-        rib_edges = [rib_edges; find(labels == n), nNodes+2*n];
+        rib_edges = [rib_edges; find(labels == n), nNodes+n];
         for j = 1:(rib_n-2)
             for k = 1:(n-1)
                 base_idx = nNodes + (j-1)*n;
@@ -494,18 +498,20 @@ function [vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, 
 
         vert_u = [vert_u; rib_nodes_u'];
         vert_f = [vert_f; rib_nodes_f'];
-        vert_ref = [vert_ref; [rib_nodes_u(1:2, :)', zeros(length(rib_nodes_u), 1)]];
+        vert_ref = [vert_ref; rib_nodes_ref'];
         edges = [edges; rib_edges];
         faces = [faces; rib_faces];
         labels = [labels; nan(length(rib_nodes_u), 1)];
+        stat_idxs = [stat_idxs, nNodes+1+n.*(0:(rib_n-2))];
+        outer_idx = [outer_idx, nNodes+n+n.*(0:(rib_n-2))];
     end
 %%
-    fig = figure;
-    patch('faces',faces(:,1:3),'vertices',vert_u(:, 1:3), ...
-            'facecolor',[0.5, 0.5, 0.5], 'facealpha', 0.5, ...
-            'edgecolor',[1,0,0], 'edgealpha', 0.2) ;
-    hold on
-    plot3dNodesEdges(vert_u', edges, nan(length(edges), 1), fig);
+    % fig = figure;
+    % patch('faces',faces(:,1:3),'vertices',vert_u(:, 1:3), ...
+    %         'facecolor',[0.5, 0.5, 0.5], 'facealpha', 0.5, ...
+    %         'edgecolor',[1,0,0], 'edgealpha', 0.2) ;
+    % hold on
+    % plot3dNodesEdges(vert_u', edges, nan(length(edges), 1), fig);
 
 
     %% Plot

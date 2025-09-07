@@ -59,6 +59,10 @@ function [F_axial, E_axial, F_crease, E_crease, F_damping] = getDRForces_fast(no
     p2    = nodes_f(creaseEdges(:,2), :);
     p3_1  = nodes_f(adj_mat(:,1), :);
     p3_2  = nodes_f(adj_mat(:,2), :);
+
+    [angle, n1, n2] = dihedralAngle(p1, p2, p3_1, p3_2);
+    angle = real(angle);
+
     
     p1_u  = nodes(creaseEdges(:,1), :);
     p2_u  = nodes(creaseEdges(:,2), :);
@@ -70,22 +74,22 @@ function [F_axial, E_axial, F_crease, E_crease, F_damping] = getDRForces_fast(no
     h2 = vecnorm(cross(p1-p3_2, p2-p3_2),2,2)./vecnorm(p2-p1,2,2);
     
     % Normals undeformed
-    n1_u = cross(p1_u-p3_1_u, p2_u-p3_1_u); n1_u = n1_u ./ vecnorm(n1_u,2,2);
-    n2_u = cross(p1_u-p3_2_u, p2_u-p3_2_u); n2_u = n2_u ./ vecnorm(n2_u,2,2);
+    % n1_u = cross(p1_u-p3_1_u, p2_u-p3_1_u); n1_u = n1_u ./ vecnorm(n1_u,2,2);
+    % n2_u = cross(p1_u-p3_2_u, p2_u-p3_2_u); n2_u = n2_u ./ vecnorm(n2_u,2,2);
     
     % Normals deformed
-    n1 = cross(p1-p3_1, p2-p3_1); n1 = n1 ./ vecnorm(n1,2,2);
-    n2 = cross(p3_2-p1, p3_2-p2); n2 = n2 ./ vecnorm(n2,2,2);
+    % n1 = cross(p1-p3_1, p2-p3_1); n1 = n1 ./ vecnorm(n1,2,2);
+    % n2 = cross(p3_2-p1, p3_2-p2); n2 = n2 ./ vecnorm(n2,2,2);
     
     % Flip orientation if needed
-    n1(n1_u(:, 3)<0, :) = -n1(n1_u(:, 3)<0, :);
-    n2(n2_u(:, 3)<0, :) = -n2(n2_u(:, 3)<0, :);
+    % n1(any(n1_u < 0, 2), :) = -n1(any(n1_u < 0, 2), :);
+    % n2(any(n2_u < 0, 2), :) = -n2(any(n2_u < 0, 2), :);
     
     % Folding angles
-    angle = angleBetweenVectors3d(n1,n2);
-    angle = real(angle);
-    flipMask = dot(n1,p3_2-p3_1,2)<0;
-    angle(flipMask) = -angle(flipMask);
+    % angle = angleBetweenVectors3d(n1,n2);
+    % angle = real(angle);
+    % flipMask = dot(n1,p3_2-p3_1,2)<0;
+    % angle(flipMask) = -angle(flipMask);
     
     % Interior angles
     a431 = angleBetweenVectors3d(p1-p2,  p3_1-p2);
@@ -102,7 +106,9 @@ function [F_axial, E_axial, F_crease, E_crease, F_damping] = getDRForces_fast(no
     k_crease = lengths(creaseIdx).*k_fold(creaseIdx);
     
     % Forces
-    scale = k_crease .* (angle - angles(creaseIdx));
+    %dif_angles = mod((angle - angles(creaseIdx)) + pi, 2*pi) - pi;
+    dif_angles = angle - angles(creaseIdx);
+    scale = k_crease .* dif_angles;
 
     F_crease = sparse(adj_mat(:,1), ones(nCrease,1), -scale.*n1(:, 1)./h1, nNodes, 1) ...
                   + sparse(adj_mat(:,2), ones(nCrease,1), -scale.*n2(:, 1)./h2, nNodes, 1) ...

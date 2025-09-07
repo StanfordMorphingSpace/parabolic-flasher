@@ -2,15 +2,18 @@ function J = getJacobian_u(nodes_f, labels, beta, varargin) %getJacobian_f(nodes
 outer_idx = varargin{1}{1}{1};
 num_outer_nodes = length(outer_idx);
 c = varargin{1}{1}{2};
+n = varargin{1}{1}{4};
+rib_d = varargin{1}{1}{5};
+rib_n = varargin{1}{1}{6};
 
 
 second_major_valley_indexes = find(labels < 0)';
 num_rotational_constrs = numel(second_major_valley_indexes);
 
 
-% num_constrs = num(g_outer)+num(g_rot)+num(g_surface)
-J = sparse(num_outer_nodes + (length(nodes_f)/3 - num_rotational_constrs) ...
-    +num_rotational_constrs*3, length(nodes_f));
+% num_constrs = num(g_outer)+num(g_rot)+num(g_surface)+num(g_rib)
+J = sparse(num_outer_nodes + (length(nodes_f)/3 - num_rotational_constrs) -n*(rib_n-1)...
+    +num_rotational_constrs*3 + n*(rib_n>0), length(nodes_f));
 
 % g_outer
 x_coord_indexes = outer_idx*3-2;
@@ -31,6 +34,9 @@ J(rotational_constr_indexes, :) = Jrot;
 
 % g_surface - Apply to all but second major valley nodes
 surface_node_indexes = find(~(labels<0))';
+if rib_d > 0
+    surface_node_indexes((end-(rib_n-1)*n+1):(end-n)) = [];
+end
 surface_constraint_indexes = num_rotational_constrs * 3 + num_outer_nodes + (1:length(surface_node_indexes));
 J(surface_constraint_indexes, :) = getSurfaceConstraintJacobian(surface_node_indexes, nodes_f, c);
 end

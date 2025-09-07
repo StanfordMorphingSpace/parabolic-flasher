@@ -5,6 +5,10 @@ cone_idx = varargin{1}{1}{3};
 A = varargin{1}{1}{4};
 c = varargin{1}{1}{5};
 inner_fixed_node_indices = varargin{1}{1}{6};
+rib_n = varargin{1}{1}{7};
+if rib_n>0
+    inner_fixed_node_indices((end-rib_n+2):end) = [];
+end
 inner_fixed_node_indices = inner_fixed_node_indices(isnan(labels(inner_fixed_node_indices)));
 
 second_major_valley_indexes = find(labels < 0)';
@@ -33,5 +37,5 @@ b(1:3*num_rotational_constrs) = getRotationalConstraints(major_valley_indexes, s
 % g_inner (Applied as g_surface)
 inner_fixed_node_indices = sort(inner_fixed_node_indices);
 surface_constraint_indexes = num_spiral_constraints + 3*num_rotational_constrs  + (1:num_surface_constrs);
-b(surface_constraint_indexes)=  getSurfaceConstraints(inner_fixed_node_indices, nodes_f, c);
+b(surface_constraint_indexes)=  getSurfaceConstraints(inner_fixed_node_indices, nodes_f, c, 0);
 end
