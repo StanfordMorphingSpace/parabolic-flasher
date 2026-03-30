@@ -13,10 +13,12 @@ function fig = plot3dNodesEdges(nodes, edges, angles, varargin)
     for i = 1:nEdges        
         if isnan(angles(i))
             color = [0 0 0];        
-        elseif angles(i) > 0 % valley
+        elseif angles(i) <= pi && angles(i)>= 0 % valley
             color = [0 0 1]; % + angles(i)/pi()*[0 1 1];
-        else                 % mountain
+        elseif angles(i) > pi && angles(i) < 2*pi % mountain
             color = [1 0 0]; % - angles(i)/pi()*[1 1 0];
+        else
+            color = [0 1 0]; % over rotated
         end
         
         %color = 'k';
@@ -25,7 +27,11 @@ function fig = plot3dNodesEdges(nodes, edges, angles, varargin)
         p2 = nodes(:,edges(i,2));
         lh = plot3([p1(1) p2(1)],[p1(2) p2(2)], [p1(3) p2(3)], 'Color', color, 'LineWidth', 2);
         if ~isnan(angles(i))
-            lh.Color = [lh.Color 1-abs(angles(i)/pi)]; % set alpha value for origami simulator
+            if color == [0 1 0]
+                lh.Color = [lh.Color 1];
+            else
+                lh.Color = [lh.Color abs((angles(i)-pi)/pi)]; % set alpha value for origami simulator
+            end
         end
     end
     

@@ -12,8 +12,8 @@ second_major_valley_indexes = find(labels < 0)';
 num_rotational_constrs = numel(second_major_valley_indexes);
 
 % num_constrs = num(g_outer)+num(g_rot)+num(g_surface)+num(g_rib)
-b = zeros(num_outer_nodes + (length(nodes_u)/3 - num_rotational_constrs) -n*(rib_n-1)...
-    +num_rotational_constrs*3 + n*(rib_n>0), 1);
+b = zeros(num_outer_nodes + (length(nodes_u)/3 - num_rotational_constrs) -n*(rib_n-1)*(rib_d>0)...
+    +num_rotational_constrs*3 + n*(rib_d>0), 1);
 
 
 % g_outer
@@ -25,10 +25,10 @@ b(1:num_outer_nodes)= -outer_R^2 + (nodes_u(x_coord_indexes).^2 + nodes_u(y_coor
 major_valley_indexes = arrayfun(@(x) find(labels == ...
     -labels(x, 1), 1), second_major_valley_indexes);
 num_rotational_constrs = length(second_major_valley_indexes);
-b(1:3*num_rotational_constrs) = getRotationalConstraints(major_valley_indexes, second_major_valley_indexes, nodes_u, beta);
+b(num_outer_nodes+(1:3*num_rotational_constrs)) = getRotationalConstraints(major_valley_indexes, second_major_valley_indexes, nodes_u, beta);
 
 %g_surface
-surface_node_indexes = find(~(labels<0))';
+surface_node_indexes = find(~(labels<=0))';
 if rib_d >0
     surface_node_indexes((end-(rib_n-1)*n+1):end) = [];
 end
