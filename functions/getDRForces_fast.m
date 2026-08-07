@@ -142,55 +142,55 @@ function [F_axial, E_axial, F_crease, E_crease, F_damping] = getDRForces_fast(st
         E_crease(creaseIdx) = 1./2.*lengths(creaseIdx).*k_fold(creaseIdx) .* dif_angles.^2;
     end
 
-    %% old version
-
-    p_j_u  = nodes(creaseEdges(:,1), :);
-    p_k_u  = nodes(creaseEdges(:,2), :);
-    p_i_u= nodes(adj_mat(:,1), :);
-    p_l_u= nodes(adj_mat(:,2), :);
+    % %% old version
     % 
-    % Heights
-    h1 = vecnorm(cross(p_j-p_i, p_k-p_i),2,2)./vecnorm(p_k-p_j,2,2);
-    h2 = vecnorm(cross(p_j-p_l, p_k-p_l),2,2)./vecnorm(p_k-p_j,2,2);
-    
-    % Normals undeformed
-    n1_u = cross(p_j_u-p_i_u, p_k_u-p_i_u); n1_u = n1_u ./ vecnorm(n1_u,2,2);
-    n2_u = cross(p_j_u-p_l_u, p_k_u-p_l_u); n2_u = n2_u ./ vecnorm(n2_u,2,2);
-    
-    % Normals deformed
-    n1 = cross(p_k - p_j, p_i - p_j, 2);
-    n2 = cross(p_l - p_j, p_k - p_j, 2);
-
-    % Normalize
-    n1 = n1 ./ vecnorm(n1,2,2);
-    n2 = n2 ./ vecnorm(n2,2,2);
-
-    % Interior angles
-    a431 = angleBetweenVectors3d(p_j-p_k,  p_i-p_k);
-    a314 = angleBetweenVectors3d(p_i-p_j, p_k-p_j);
-    a423 = angleBetweenVectors3d(p_l-p_k, p_j-p_k);
-    a342 = angleBetweenVectors3d(p_k-p_j,  p_l-p_j);
-
-    dthdp_j = -cot(a431)./(cot(a314)+cot(a431)).*n1./h1 + ...
-             -cot(a423)./(cot(a342)+cot(a423)).*n2./h2;
-    dthdp_k = -cot(a314)./(cot(a314)+cot(a431)).*n1./h1 + ...
-             -cot(a342)./(cot(a342)+cot(a423)).*n2./h2;
-
-
-
-    F_crease2 = sparse(adj_mat(:,1), ones(nCrease,1), -scale.*n1(:, 1)./h1, nNodes, 1) ...
-                  + sparse(adj_mat(:,2), ones(nCrease,1), -scale.*n2(:, 1)./h2, nNodes, 1) ...
-                  + sparse(creaseEdges(:,1), ones(nCrease,1), -scale.*dthdp_j(:, 1), nNodes, 1) ...
-                  + sparse(creaseEdges(:,2), ones(nCrease,1), -scale.*dthdp_k(:, 1), nNodes, 1);
-    F_crease2(:,2) = sparse(adj_mat(:,1), ones(nCrease,1), -scale.*n1(:, 2)./h1, nNodes, 1) ...
-                  + sparse(adj_mat(:,2), ones(nCrease,1), -scale.*n2(:, 2)./h2, nNodes, 1) ...
-                  + sparse(creaseEdges(:,1), ones(nCrease,1), -scale.*dthdp_j(:, 2), nNodes, 1) ...
-                  + sparse(creaseEdges(:,2), ones(nCrease,1), -scale.*dthdp_k(:, 2), nNodes, 1);
-    F_crease2(:,3) = sparse(adj_mat(:,1), ones(nCrease,1), -scale.*n1(:, 3)./h1, nNodes, 1) ...
-                  + sparse(adj_mat(:,2), ones(nCrease,1), -scale.*n2(:, 3)./h2, nNodes, 1) ...
-                  + sparse(creaseEdges(:,1), ones(nCrease,1), -scale.*dthdp_j(:, 3), nNodes, 1) ...
-                  + sparse(creaseEdges(:,2), ones(nCrease,1), -scale.*dthdp_k(:, 3), nNodes, 1);
-    F_crease2 = full(F_crease2);
+    % p_j_u  = nodes(creaseEdges(:,1), :);
+    % p_k_u  = nodes(creaseEdges(:,2), :);
+    % p_i_u= nodes(adj_mat(:,1), :);
+    % p_l_u= nodes(adj_mat(:,2), :);
+    % % 
+    % % Heights
+    % h1 = vecnorm(cross(p_j-p_i, p_k-p_i),2,2)./vecnorm(p_k-p_j,2,2);
+    % h2 = vecnorm(cross(p_j-p_l, p_k-p_l),2,2)./vecnorm(p_k-p_j,2,2);
+    % 
+    % % Normals undeformed
+    % n1_u = cross(p_j_u-p_i_u, p_k_u-p_i_u); n1_u = n1_u ./ vecnorm(n1_u,2,2);
+    % n2_u = cross(p_j_u-p_l_u, p_k_u-p_l_u); n2_u = n2_u ./ vecnorm(n2_u,2,2);
+    % 
+    % % Normals deformed
+    % n1 = cross(p_k - p_j, p_i - p_j, 2);
+    % n2 = cross(p_l - p_j, p_k - p_j, 2);
+    % 
+    % % Normalize
+    % n1 = n1 ./ vecnorm(n1,2,2);
+    % n2 = n2 ./ vecnorm(n2,2,2);
+    % 
+    % % Interior angles
+    % a431 = angleBetweenVectors3d(p_j-p_k,  p_i-p_k);
+    % a314 = angleBetweenVectors3d(p_i-p_j, p_k-p_j);
+    % a423 = angleBetweenVectors3d(p_l-p_k, p_j-p_k);
+    % a342 = angleBetweenVectors3d(p_k-p_j,  p_l-p_j);
+    % 
+    % dthdp_j = -cot(a431)./(cot(a314)+cot(a431)).*n1./h1 + ...
+    %          -cot(a423)./(cot(a342)+cot(a423)).*n2./h2;
+    % dthdp_k = -cot(a314)./(cot(a314)+cot(a431)).*n1./h1 + ...
+    %          -cot(a342)./(cot(a342)+cot(a423)).*n2./h2;
+    % 
+    % 
+    % 
+    % F_crease2 = sparse(adj_mat(:,1), ones(nCrease,1), -scale.*n1(:, 1)./h1, nNodes, 1) ...
+    %               + sparse(adj_mat(:,2), ones(nCrease,1), -scale.*n2(:, 1)./h2, nNodes, 1) ...
+    %               + sparse(creaseEdges(:,1), ones(nCrease,1), -scale.*dthdp_j(:, 1), nNodes, 1) ...
+    %               + sparse(creaseEdges(:,2), ones(nCrease,1), -scale.*dthdp_k(:, 1), nNodes, 1);
+    % F_crease2(:,2) = sparse(adj_mat(:,1), ones(nCrease,1), -scale.*n1(:, 2)./h1, nNodes, 1) ...
+    %               + sparse(adj_mat(:,2), ones(nCrease,1), -scale.*n2(:, 2)./h2, nNodes, 1) ...
+    %               + sparse(creaseEdges(:,1), ones(nCrease,1), -scale.*dthdp_j(:, 2), nNodes, 1) ...
+    %               + sparse(creaseEdges(:,2), ones(nCrease,1), -scale.*dthdp_k(:, 2), nNodes, 1);
+    % F_crease2(:,3) = sparse(adj_mat(:,1), ones(nCrease,1), -scale.*n1(:, 3)./h1, nNodes, 1) ...
+    %               + sparse(adj_mat(:,2), ones(nCrease,1), -scale.*n2(:, 3)./h2, nNodes, 1) ...
+    %               + sparse(creaseEdges(:,1), ones(nCrease,1), -scale.*dthdp_j(:, 3), nNodes, 1) ...
+    %               + sparse(creaseEdges(:,2), ones(nCrease,1), -scale.*dthdp_k(:, 3), nNodes, 1);
+    % F_crease2 = full(F_crease2);
 
     %F_crease = F_crease2 + eq_axial;
 end

@@ -1,24 +1,23 @@
 clc; clear;
 
-tic
-
 % add all subfolders
 addpath(genpath(pwd))
 
-save_on = 0; % toggle save fold lines to abaqus
+save_on = 1; % toggle save fold lines for abaqus
 plot_on = 1; % toggle plotting figures
-save_path = "D:\Curved_crease_antennas\SciTech_2026\depths_composite";
+save_stability = 1; % toggle saving convergence info
+save_path = "D:\Curved_crease_antennas\journal_2026\fmincon_comp\fmincon";
 
 %% wildtronics dish
 A = 115/2/1000; % inner polygon radium, m (4 in)
 N = 8;
 h = 0.8/1000; % layer thickness, m
-n = 15; % total subdivisions per major fold line
+n = 7; % total subdivisions per major fold line
 R = 507/2/1000; % outer radius as measured, m
-R = 0.15;
+R = 0.10;
 c = 1/(4*118.11/1000); % 4.65in focus to vertex for test article, m
 c = 0.25*c; % scale c for different depths
-iter = 1000; % number of fmincon iterations
+iter = 10000; % number of fmincon iterations
 rib_d = 0.0; % dib depth, m
 
 % % material properties polycarbonate
@@ -148,15 +147,13 @@ ylabel('Length error (percent)')
 
 angles_f = foldedCreaseAngles_fast(vert_f, vert_u, edges, adj_faces);
 angles_u = foldedCreaseAngles_fast(vert_u, vert_f, edges, adj_faces);
-% angles = mod((angles_f - angles_u) + pi, 2*pi) - pi;
-% angles = sign(angles)*pi - angles;
-% angles(angles==0) = pi;
 angles = angles_f - angles_u + pi;
 
 fig_deployed = plot3dNodesEdges(vert_u', edges, nan(length(edges), 1)); %nan(length(edges), 1)
 figure(fig_deployed)
 
 %% Optimization
+tic
 if rib_d == 0
     rib_n = 0;
 end
@@ -200,7 +197,7 @@ x0 = [p_u, p_f];
 Af = []; bf = [];
 Aeq = []; beq = [];
 lb = []; ub = [];
-nonlcon = @(x) geo_con(x, geo, beta, R, labels, stat_idxs, outer_idx, n, rib_d, rib_n, cone_idx);
+nonlcon = @(x) geo_con(x, geo, beta, labels, stat_idxs, outer_idx, rib_d, rib_n, cone_idx);
 e_fun = @(x) get_energy(x, edges, adj_faces, geo, mass);
 %out_fun = @(x) stop = outfun(xk, optimValues, state)
 
@@ -219,19 +216,21 @@ e_fun = @(x) get_energy(x, edges, adj_faces, geo, mass);
 
 
 options = optimoptions('fmincon', 'Algorithm', 'interior-point', 'ConstraintTolerance',1e-15, ...
-    'MaxFunctionEvaluations', 1e4, 'MaxIterations', iter, 'SpecifyObjectiveGradient', true, 'SpecifyConstraintGradient', true,...
+    'MaxFunctionEvaluations', 5e4, 'MaxIterations', iter, 'SpecifyObjectiveGradient', true, 'SpecifyConstraintGradient', true, ... % "EnableFeasibilityMode",true,... "SubproblemAlgorithm","cg",
     OutputFcn=@outfun); % 'EnableFeasibilityMode', true, 'SubproblemAlgorithm', 'cg', PlotFcn='optimplotconstrviolation'
 % options = optimoptions('fmincon', 'Algorithm', 'interior-point', 'ConstraintTolerance',1e-15, 'StepTolerance', 1e-15,...
 %     'MaxFunctionEvaluations', 1e6, 'MaxIterations', 100, 'FiniteDifferenceType', 'central','FiniteDifferenceStepSize', sqrt(eps),...
 %     OutputFcn=@outfun); % 'EnableFeasibilityMode', true, 'SubproblemAlgorithm', 'cg', PlotFcn='optimplotconstrviolation'
 [x, min_E, exitflag, output, lambda, grad, hessian] = fmincon(e_fun, x0, Af, bf, Aeq, beq, lb, ub, nonlcon, options);
-%%
-[f, g] = get_energy(x, edges, adj_faces, geo, mass);
+% %%
+% [f, g] = get_energy(x, edges, adj_faces, geo, mass);
+% 
+% grad = reshape(grad, size(g));
+% test = g - grad;
 
-grad = reshape(grad, size(g));
-test = g - grad;
+% [c, ceq, c_g, ceq_g] = geo_con(x, geo, beta, R, labels, stat_idxs, outer_idx, n, rib_d, rib_n, cone_idx);
 
-[c, ceq, c_g, ceq_g] = geo_con(x, geo, beta, R, labels, stat_idxs, outer_idx, n, rib_d, rib_n, cone_idx);
+runtime = toc;
 %%
 vert_u = x(:, 1:3);
 vert_f = x(:, 4:6);
@@ -245,80 +244,7 @@ grid on
 set(gca, "FontSize", 18)
 
 %%
-[c, ceq] = geo_con(x, geo, beta, R, labels, stat_idxs, outer_idx, n, rib_d, rib_n, cone_idx);
-
-%%
-
-% E_cr = zeros(1, iter);
-% E_ax = zeros(1, iter);
-% E_v = zeros(1, iter);
-% E_tot_prev = Inf;
-% E_diff = Inf;
-% for i = 1:iter
-%     if E_diff < 1e-9
-%         disp("converged")
-%         break
-%     end
-%     [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_Step_parabolic(p_u, p_f, v_u, v_f, vert_ref, labels, edges, adj_faces, dt, geo, mass, i, stat_idxs, outer_idx, R, cone_idx, n, rib_n, rib_d);
-% 
-%     % Store Energy
-%     E_cr(i) = sum(E_crease);
-%     E_ax(i) = sum(E_axial);
-%     E_v(i) = sum(E_v_f) + sum(E_v_u);
-% 
-%     E_diff = abs(E_cr(i)+E_ax(i)+E_v(i)-E_tot_prev);
-%     E_tot_prev = E_cr(i)+E_ax(i)+E_v(i);
-% 
-%     vert_f(:, :, i+1) = p_f;
-%     accel_f(:, :, i+1) = a_f;
-% 
-%     vert_u(:, :, i+1) = p_u;
-%     accel_u(:, :, i+1) = a_u;
-% end
-% 
-% end_incr = i;
-% 
-% toc
-% 
-% %% Plot Energies
-% 
-% if plot_on
-% 
-%     figure;
-%     plot(1:length(E_ax), E_ax, "LineWidth", 2)
-%     set(gca, 'YScale', 'log')
-%     xlabel("Iterations")
-%     ylabel("Total Stretching Energy [J]")
-%     grid on
-%     set(gca, "FontSize", 18)
-% 
-%     figure;
-%     plot(1:length(E_cr), E_cr, "LineWidth", 2)
-%     set(gca, 'YScale', 'log')
-%     xlabel("Iterations")
-%     ylabel("Total Bending Energy [J]")
-%     grid on
-%     set(gca, "FontSize", 18)
-% 
-% 
-%     figure;
-%     plot(1:length(E_v), E_v, "LineWidth", 2)
-%     set(gca, 'YScale', 'log')
-%     xlabel("Iterations")
-%     ylabel("Total Kinetic Energy [J]")
-%     grid on
-%     set(gca, "FontSize", 18)
-% 
-% 
-%     figure;
-%     plot(1:length(E_v), E_ax+E_cr+E_v, "LineWidth", 2)
-%     set(gca, 'YScale', 'log')
-%     xlabel("Iterations")
-%     ylabel("Total Energy [J]")
-%     grid on
-%     set(gca, "FontSize", 18)
-% end
-
+%[c, ceq, c_g, ceq_g] = geo_con(x, geo, beta, labels, stat_idxs, outer_idx, rib_d, rib_n, cone_idx);
 
 %% Get edge lengths and angles
 lengths     = getEdgeLengths(vert_u(:, 1:3, end), edges);
@@ -332,9 +258,6 @@ ylabel('Length error (percent)')
 
 angles_f = foldedCreaseAngles_fast(vert_f(:, :, end), vert_u(:, :, end), edges, adj_faces);
 angles_u = foldedCreaseAngles_fast(vert_u(:, :, end), vert_f(:, :, end), edges, adj_faces);
-% angles = mod((angles_f - angles_u) + pi, 2*pi) - pi;
-% angles = sign(angles)*pi - angles;
-% angles(angles==0) = pi;
 angles = angles_f - angles_u + pi;
 
 %% plotting
@@ -376,22 +299,18 @@ if save_on
     major_v_u = vert_u(0 < labels & labels <= n, :, end);
     order = labels(0 < labels & labels <= n)-min(labels(0 < labels & labels <= n))+1;
     major_v_u = flip(sortrows([major_v_u, order], 4), 1);
-    %major_v_u = flip(major_v_u(order, :))
     major_v_f = vert_f(labels(0 < labels & labels <= n), :, end);
     major_v_f = flip(sortrows([major_v_f, order], 4), 1);
-    %major_v_f = flip(major_v_f(order, :))
     
     major_m_u = vert_u((labels > n), :, end);
     order = labels(labels > n)-min(labels(labels>n))+1;
     major_m_u = sortrows([major_m_u, order], 4);
-    %major_m_u = major_m_u(order, :)
     major_m_f = vert_f((labels > n), :, end);
     major_m_f = sortrows([major_m_f, order], 4);
-    %major_m_f = major_m_f(order, :)
     
-    save(fullfile(save_path, sprintf("major_folds_fnum%d_n%d_N%d_rib%d.mat", [f_num*1000, n, N, rib_d*1000])), 'major_v_u', 'major_v_f', 'major_m_u', 'major_m_f');
-    writematrix(major_v_u(:, 1:2), fullfile(save_path, sprintf('major_v_u_fnum%d_n%d_N%d_rib%d.csv', [f_num*1000, n, N, rib_d*1000])));
-    writematrix(major_m_u(:, 1:2), fullfile(save_path, sprintf('major_m_u_fnum%d_n%d_N%d_rib%d.csv', [f_num*1000, n, N, rib_d*1000])));
+    save(fullfile(save_path, sprintf("major_folds_c%d_n%d_N%d_rib%d_R%d_fmincon.mat", [round(c*1000), n, N, rib_d*1000, round(R*100)])), 'major_v_u', 'major_v_f', 'major_m_u', 'major_m_f');
+    writematrix(major_v_u(:, 1:2), fullfile(save_path, sprintf('major_v_u_c%d_n%d_N%d_rib%d_R%d_fmincon.csv', [round(c*1000), n, N, rib_d*1000, round(R*100)])));
+    writematrix(major_m_u(:, 1:2), fullfile(save_path, sprintf('major_m_u_c%d_n%d_N%d_rib%d_R%d_fmincon.csv', [round(c*1000), n, N, rib_d*1000, round(R*100)])));
     
     inner_idxs = vert_u(stat_idxs([1, end:-1:2]), :, end);
     hexagon = inner_idxs;
@@ -402,8 +321,14 @@ if save_on
     
     hexagon = [hexagon; hexagon(1, :)];
     
-    writematrix(hexagon(:, 1:2), fullfile(save_path, sprintf('inner_hexagon_fnum%d_n%d_N%d_rib%d.csv', [f_num*1000, n, N, rib_d*1000])));
-    save(fullfile(save_path, sprintf("101525_converge_fnum%d_n%d_N%d_rib%d.mat", [f_num*1000, n, N, rib_d*1000])));
+    writematrix(hexagon(:, 1:2), fullfile(save_path, sprintf('inner_hexagon_c%d_n%d_N%d_rib%d_R%d_fmincon.csv', [round(c*1000), n, N, rib_d*1000, round(R*100)])));
+    %save(fullfile(save_path, sprintf("101525_converge_c%d_n%d_N%d_rib%d_gamma%d.mat", [round(c*1000), n, N, rib_d*1000, geo.gamma*100])));
+end
+
+if save_stability
+    nodes_f = vert_f(:, :, end);
+    nodes_u = vert_u(:, :, end);
+    save(fullfile(save_path, sprintf("051226_stability_c%d_n%d_N%d_rib%d_R%d_fmincon.mat", [round(c*1000), n, N, rib_d*1000, round(R*100)])), 'nodes_f', 'nodes_u', 'Fhist', 'Xhist', 'Ihist', 'Fcount', 'edges', 'adj_faces', 'faces', 'runtime', 'geo', 'labels', 'outer_idx', 'stat_idxs');
 end
 
 %% Generate unified mesh (This takes a while)
@@ -441,47 +366,21 @@ end
 %     triag = triangulation(faces_one, unfolded);
 %     stlwrite(triag, fullfile(save_path, sprintf('DR_parabolic_test_v4_N8_n%d_c0.stl', n)));
 % end
-%% plot folded with time slider (Out of date)
-
-% S.vert_f = vert_f;
-% S.vert_u = vert_u;
-% S.faces = faces;
-% S.ind = end_incr;
-% S.accel_f = accel_f;
-% S.accel_u = accel_u;
-% S.rot = rot;
-% 
-% S.ruling_nodes1_f = ruling_nodes1_f;
-% S.n = n;
-% 
-% S.fig = figure('Units', 'normalized', 'Position', [0.05 0.01 0.9 0.9]);
-% xlim([-0.5, 1.5]);
-% ylim([-0.5, 1.5]);
-% zlim([-0.5, 1.5]);
-% plot_ind(S);
-% 
-% 
-% uicontrol('Style', 'text', 'Units', 'normalized', 'Position', [0.04, 0.01, 0.05, 0.04], 'String', 'ind')
-% shiftXSlider = uicontrol(   'Style', 'slider',...
-%                             'Units', 'normalized', 'Position', [0.1, 0.03, 0.8, 0.03],...
-%                             'value', S.ind, 'min', 1, 'max', end_incr,...
-%                             'callback', {@showEdgeworkSliderCB, 'ind'});
-% guidata(S.fig, S)
 
 %% functions
 
-function [c, ceq, c_g, ceq_g] = geo_con(x, geo, beta, outer_R, labels, stat_idxs, outer_idx, n, rib_d, rib_n, cone_idx)
+function [c, ceq, c_g, ceq_g] = geo_con(x, geo, beta, labels, stat_idxs, outer_idx, rib_d, rib_n, cone_idx)
     p_u = x(:, 1:3);
     p_f = x(:, 4:6);
 
     p_u_stack = p_u'; p_u_stack = p_u_stack(:);
     p_f_stack = p_f'; p_f_stack = p_f_stack(:);
     
-    b_u = getb_u(p_u_stack, labels, beta, {{outer_idx, geo.c, outer_R, n, rib_d, rib_n}});
-    b_f = getb_f(p_f_stack, labels, beta, {{geo.h, geo.n, cone_idx, geo.A, geo.c, stat_idxs, rib_n}});
+    b_u = getb_u(p_u_stack, labels, beta,  {{geo, outer_idx, stat_idxs, rib_d, rib_n}});
+    b_f = getb_f(p_f_stack, labels, beta, {{geo, cone_idx, stat_idxs, rib_n}});
 
-    J_u = getJacobian_u(p_u_stack, labels, beta, {{outer_idx, geo.c, outer_R, n, rib_d, rib_n}});
-    J_f = getJacobian_f(p_f_stack, labels, beta, {{geo.h, geo.n, cone_idx, geo.A, geo.c, stat_idxs, rib_n}});
+    J_u = getJacobian_u(p_u_stack, labels, beta, {{geo, outer_idx, stat_idxs, rib_d, rib_n}});
+    J_f = getJacobian_f(p_f_stack, labels, beta, {{geo, cone_idx, stat_idxs, rib_n}});
 
     ceq = [b_u; b_f];
     ceq_g = [J_u, zeros(size(J_u)); zeros(size(J_f)), J_f];
@@ -581,51 +480,4 @@ function stop = outfun(x, optimValues, state)
     end
 end
 
-function showEdgeworkSliderCB(slider, EventData, Param)    
-    S = guidata(slider);
-    S.(Param) = get(slider, 'Value');
-    S = plot_ind(S);
-    guidata(slider, S);
-end
-
-function S = plot_ind(S)
-    vert_f = S.vert_f(:, :, floor(S.ind));
-    accel_f = S.accel_f(:, :, floor(S.ind));
-    vert_u = S.vert_u(:, :, floor(S.ind));
-    accel_u = S.accel_u(:, :, floor(S.ind));
-    S.xlim = xlim;
-    S.ylim = ylim;
-    S.zlim = zlim;
-    cla;
-    
-    patch('faces',S.faces(:,1:3),'vertices',vert_f(:, 1:3), ...
-        'facecolor','w', 'facealpha', 0, ...
-        'edgecolor',[1,0,0], 'edgealpha', 0.4) ;
-    hold on; axis image off;
-    patch('faces',S.faces(:,1:3),'vertices',vert_u(:, 1:3), ...
-        'facecolor','w', 'facealpha', 0, ...
-        'edgecolor',[0,0,1], 'edgealpha', 0.4) ;
-    
-    v_verts = S.ruling_nodes1_f(1:3, 1:S.n);
-    v_verts_rot = S.rot*S.ruling_nodes1_f(1:3, 1:S.n);
-    m_verts = S.ruling_nodes1_f(1:3, (S.n+1):end);
-    plot3(v_verts(1, :), v_verts(2, :), v_verts(3, :), 'b-', 'LineWidth', 1.5)
-    plot3(v_verts(1, :), v_verts(2, :), v_verts(3, :), 'k.', 'MarkerSize', 1)
-    plot3(m_verts(1, :), m_verts(2, :), m_verts(3, :), 'r-', 'LineWidth', 1.5)
-    plot3(m_verts(1, :), m_verts(2, :), m_verts(3, :), 'k.', 'MarkerSize', 1)
-    plot3(v_verts_rot(1, :), v_verts_rot(2, :), v_verts_rot(3, :), 'b-', 'LineWidth', 1.5)
-    plot3(v_verts_rot(1, :), v_verts_rot(2, :), v_verts_rot(3, :), 'k.', 'MarkerSize', 1)
-
-    quiver3(vert_f(:, 1),vert_f(:, 2),vert_f(:, 3), accel_f(:, 1),accel_f(:, 2),accel_f(:, 3))
-    quiver3(vert_u(:, 1),vert_u(:, 2),vert_u(:, 3), accel_u(:, 1),accel_u(:, 2),accel_u(:, 3))
-    axis equal
-    axis tight
-    axis off
-    xlim(S.xlim)
-    ylim(S.ylim)
-    zlim(S.zlim)
-    
-    ax = gca;
-    ax.Clipping = 'off';
-end
 
