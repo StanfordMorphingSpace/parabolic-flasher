@@ -25,7 +25,7 @@ function fig = plot3dNodesEdges(nodes, edges, angles, varargin)
         
         p1 = nodes(:,edges(i,1));
         p2 = nodes(:,edges(i,2));
-        lh = plot3([p1(1) p2(1)],[p1(2) p2(2)], [p1(3) p2(3)], 'Color', color, 'LineWidth', 2);
+        lh = plot3([p1(1) p2(1)],[p1(2) p2(2)], [p1(3) p2(3)], 'Color', color, 'LineWidth', 1);
         if ~isnan(angles(i))
             if color == [0 1 0]
                 lh.Color = [lh.Color 1];

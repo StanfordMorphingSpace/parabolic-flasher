@@ -1,4 +1,4 @@
-function [unfolded, edges_one, faces_one] = makeFullMesh(nodes_u, edges, faces, rot, N)
+function [unfolded, edges_one, faces_one, angles_one] = makeFullMesh(nodes_u, edges, faces, angles, rot, N)
 
     unfolded = nodes_u;
     faces_one = faces;

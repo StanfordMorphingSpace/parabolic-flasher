@@ -15,16 +15,16 @@ function [p_new, v_new, E_v] = makeStep(p, v, a, getJacobian, getb, labels, beta
         v_stack = Pv * (norm(v_stack) / norm(Pv));
 
         % damping calc from geodesic paper
-        theta = dot(v_stack, r_stack)./norm(v_stack)./norm(r_stack);
-        gamma = 0.98*theta;
+        % theta = dot(v_stack, r_stack)./norm(v_stack)./norm(r_stack);
+        % gamma = 0.98*theta;
         %gamma = 0.95+theta./20;
         %gamma = theta>0;
-    else
-        gamma = zeros(size(v_stack));
+    % else
+    %     gamma = zeros(size(v_stack));
     end
     
-    %v_stack = v_stack + r_stack.*dt;
-    v_stack = gamma.*v_stack + r_stack.*dt;
+    v_stack = v_stack + r_stack.*dt;
+    %v_stack = gamma.*v_stack + r_stack.*dt;
     p_stack = p_stack + v_stack.*dt;
 
     % pullback
