@@ -4,26 +4,42 @@ clc; clear;
 addpath(genpath(pwd))
 
 save_on = 0; % toggle save fold lines for abaqus
-plot_on = 0; % toggle plotting figures
+plot_on = 1; % toggle plotting figures
 save_stability = 0; % toggle saving convergence info
-save_path = "D:\Curved_crease_antennas\SciTech_2027\fold_pattern";
+save_path = "D:\Curved_crease_antennas\SciTech_2027\fold_pattern\brims";
 
 %% wildtronics dish
 A = 115/2/1000; % inner polygon radium, m (4 in)
 N = 8;
-h = 0.8/1000; % layer thickness, m
-n = 7; % total subdivisions per major fold line
+h = 2.2/1000; % layer thickness, m
+n = 50; % total subdivisions per major fold line
 R = 507/2/1000; % outer radius as measured, m
-R = 0.10;
 c = 1/(4*118.11/1000); % 4.65in focus to vertex for test article, m
-c = 0.25*c; % scale c for different depths
-iter = 1000; % number of fmincon iterations
-rib_d = 0.0; % dib depth, m
+c = 0.3*c; % scale c for different depths
+iter = 5; % number of fmincon iterations
+
+surf_func = @(r) c*r.^2; % surface function for the paraboloid
+surf_func_prime = @(r) 2*c*r; % d(surf_func)/dr
+
+% no rib set rib_d = 0
+rib_d = 0.00; % dib depth, m
+% no brim set brim_R = 0
+brim_R = 0.554/2; % brim outer radius
+
+brim_R = 0;
+
+brim_a = (c*R*(R-2*brim_R) + 0.142)/(brim_R-R)^2;
+brim_b = 2*R*(c*brim_R^2 - 0.142)/(brim_R-R)^2;
+brim_c = R^2*(0.142 - c*brim_R^2)/(brim_R-R)^2;
+
+brim_func = @(r) brim_a*r.^2 + brim_b*r + brim_c;
+brim_func_prime = @(r) 2*brim_a*r + brim_b;
+
 
 % % material properties polycarbonate
 E = 2390000000; 
 v = 0.37;
-t = 0.0006; % 0.00076 reported, 0.0006 measured
+t = 0.002; % 0.00076 reported, 0.0006 measured outside, 0.0007 measured inside
 
 % A = 0.025; % inner polygon radium, m (4 in)
 % N = 10;
@@ -40,14 +56,13 @@ t = 0.0006; % 0.00076 reported, 0.0006 measured
 % v = 0.37;
 % t = 0.0005; % 0.00076 reported, 0.0006 measured
 
-% %% Lunar Reflector prototype
-% A = 0.08/2; % inner polygon radium, m
-% N = 8;
+% % %% Lunar Reflector prototype
+% A = 0.08/2; % inner polygon radius, m
+% N = 8; % rotational symmetry
 % h = 1.2*0.67/1000; % layer thickness, m
 % n = 55; % total subdivisions per major fold line
 % R = 0.4318/2; % outer radius as measured, m
-% c = 1/(4*1); % 4.65in focus to vertex for test article, m
-% c = 1*c; % scale c for different depths
+% c = 1/(4*1); % 1m focal length, m
 % iter = 100000; % number of DR iterations (~30000 for convergence)
 % rib_d = 0; % dib depth, m
 % 
@@ -55,7 +70,7 @@ t = 0.0006; % 0.00076 reported, 0.0006 measured
 % % % material properties carbon fiber
 % E = 120E9; 
 % v = 0.28;
-% t = 0.67/1000; % 
+% t = 0.67/1000; % material thickness
 % %t = 2*2.54e-4;
 
 % %% Parachute
@@ -80,6 +95,11 @@ if rib_d == 0
     rib_n = 0;
 end
 
+brim_n = max(round((brim_R-R)/((R-A)/n))+1, 2);
+if brim_R == 0
+    brim_n = 0;
+end
+
 % % FLUTE
 % A = 1.5; % 
 % N = 18;
@@ -95,7 +115,11 @@ geo.N = N;
 geo.h = h; % layer thickness
 geo.n = n; % total subdivisions
 geo.R = R; % outer radius
-geo.c = c;
+geo.surf_func = surf_func;
+geo.surf_func_prime = surf_func_prime;
+geo.brim_R = brim_R; % brim outer radius
+geo.brim_func = brim_func;
+geo.brim_func_prime = brim_func_prime;
 geo.E = E;
 geo.v = v;
 geo.rib_d = rib_d;
@@ -107,7 +131,9 @@ rot     = [ cos(beta), -sin(beta), 0;...
             0, 0, 1];
 
 % generate mesh
-[vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, cone_idx] = generateMesh_ribs(A, N, h, n, R, c, 0, rib_d);
+%[vert_u, vert_f, vert_ref, labels, edges, faces] = generateMesh_ribs(A, N, h, n, R, surf_func, 0, rib_d, brim_R, brim_func);
+[vert_u, vert_f, vert_ref, labels, edges, faces] = generateMesh_ribs_old(A, N, h, n, R, surf_func, 0, rib_d);
+
 
 lengths = getEdgeLengths(vert_u, edges);
 
@@ -126,54 +152,9 @@ dt = 0.9*1/(2*pi*sqrt(geo.k_axial/min(lengths)/mass_scalar));
 %dt = 0.5*1/(2*pi*sqrt(geo.k_axial));
 
 %%
-adj_face = cell(length(edges), 1);
-% rearrange how faces are stored
-for i = 1:length(edges)
-        p1_index = edges(i, 1);
-        p2_index = edges(i, 2);
-        
-        % Bending forces
-        faces_with_node1        = (faces(:, 1) == p1_index) | (faces(:, 2) == p1_index) | (faces(:, 3) == p1_index);
-        faces_with_node2        = (faces(:, 1) == p2_index) | (faces(:, 2) == p2_index) | (faces(:, 3) == p2_index);
-        faces_adjacent_to_edge  = faces((faces_with_node1 & faces_with_node2), :);
-        
-        adj_face{i} = faces_adjacent_to_edge(~ismember(faces_adjacent_to_edge,[p1_index p2_index]));
-end
-
-% Only keep edges with 2 adjacent faces
-mask = cellfun(@(x) numel(x)==2, adj_face);
-creaseEdges = edges(mask,:);
-creaseIdx   = find(mask);
-
-% Build adjacency matrix safely
-adj_mat = cell2mat(cellfun(@(x) x(:).', adj_face(mask), 'UniformOutput', false));
-
-adj_faces.creaseIdx = creaseIdx;
-adj_faces.adj_mat = adj_mat;
-adj_faces.mask = mask;
+adj_faces = getAdjacentFaces(vert_u, edges, faces);
 
 nNodes = length(vert_u);
-
-% fix normals
-focal_point = [0, 0, 1/(c*4)];
-
-p1    = vert_u(creaseEdges(:,1), :);
-p2    = vert_u(creaseEdges(:,2), :);
-p3_1  = vert_u(adj_mat(:,1), :);
-p3_2  = vert_u(adj_mat(:,2), :);
-
-e = p2 - p1;
-e = e ./ vecnorm(e,2,2);
-
-n1 = cross(p2 - p1, p3_1 - p1, 2);
-n2 = cross(p3_2 - p1, p2 - p1, 2);
-
-n1 = n1 ./ vecnorm(n1,2,2);
-n2 = n2 ./ vecnorm(n2,2,2);
-
-ref = focal_point-p1;
-creaseEdges(dot(ref, n1, 2) < 0, :) = flip(creaseEdges(dot(ref, n1, 2) < 0, :), 2);
-adj_faces.creaseEdges = creaseEdges;
 
 %% Initial error and angles
 lengths     = getEdgeLengths(vert_u(:, 1:3), edges);
@@ -197,15 +178,27 @@ tic
 
 k_fold = geo.k_fold*ones(length(edges), 1);
 
+% zero out fold stiffness along ruling-line edges (they aren't actual creases)
+ruled_idx = [labels.valley_idx, labels.valley_rot_idx, labels.mount_idx];
+if isfield(labels, 'ribs_idx')
+    ruled_idx = [ruled_idx, labels.ribs_idx];
+end
+if isfield(labels, 'brim_idx')
+    ruled_idx = [ruled_idx, labels.brim_valley_idx, labels.brim_valley_rot_idx, labels.brim_mountain_idx];
+end
+
 for i = 1:length(edges)
     p1 = edges(i, 1);
     p2 = edges(i, 2);
-    if ~isnan(labels(p1)) && ~isnan(labels(p2))
+    if ismember(p1, ruled_idx) && ismember(p2, ruled_idx)
+        k_fold(i) = 0;
+    elseif ismember(p1, labels.outer_idx) && ismember(p2, labels.outer_idx)
         k_fold(i) = 0;
     end
+
 end
 
-k_fold(~mask) = 0;
+k_fold(~adj_faces.mask) = 0;
 
 geo.k_fold = k_fold;
 
@@ -236,7 +229,7 @@ for i = 1:iter
         disp("converged")
         break
     end
-    [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_Step_parabolic(p_u, p_f, v_u, v_f, vert_ref, labels, edges, adj_faces, dt, geo, mass, i, stat_idxs, outer_idx, R, cone_idx, n, rib_n, rib_d);
+    [p_u, p_f, v_u, v_f, a_u, a_f, E_crease, E_axial, E_v_u, E_v_f] = DR_Step_parabolic(p_u, p_f, v_u, v_f, labels, edges, adj_faces, dt, geo, mass, i);
     
     % Store Energy
     E_cr(i) = sum(E_crease);
@@ -351,23 +344,17 @@ end
 %% Save major fold lines
 
 if save_on
-    major_v_u = vert_u(0 < labels & labels <= n, :, end_incr);
-    order = labels(0 < labels & labels <= n)-min(labels(0 < labels & labels <= n))+1;
-    major_v_u = flip(sortrows([major_v_u, order], 4), 1);
-    major_v_f = vert_f(labels(0 < labels & labels <= n), :, end_incr);
-    major_v_f = flip(sortrows([major_v_f, order], 4), 1);
-    
-    major_m_u = vert_u((labels > n), :, end_incr);
-    order = labels(labels > n)-min(labels(labels>n))+1;
-    major_m_u = sortrows([major_m_u, order], 4);
-    major_m_f = vert_f((labels > n), :, end_incr);
-    major_m_f = sortrows([major_m_f, order], 4);
+    major_v_u = flip(vert_u([labels.valley_idx labels.brim_valley_idx], :, end_incr), 1);
+    major_v_f = flip(vert_f([labels.valley_idx labels.brim_valley_idx], :, end_incr), 1);
+
+    major_m_u = vert_u([labels.mount_idx, labels.brim_mountain_idx], :, end_incr);
+    major_m_f = vert_f([labels.mount_idx, labels.brim_mountain_idx], :, end_incr);
     
     save(fullfile(save_path, sprintf("major_folds_c%d_n%d_N%d_rib%d_gamma%d_R%d.mat", [round(c*1000), n, N, rib_d*1000, geo.gamma*100, round(R*100)])), 'major_v_u', 'major_v_f', 'major_m_u', 'major_m_f');
     writematrix(major_v_u(:, 1:2), fullfile(save_path, sprintf('major_v_u_c%d_n%d_N%d_rib%d_gamma%d_R%d.csv', [round(c*1000), n, N, rib_d*1000, geo.gamma*100, round(R*100)])));
     writematrix(major_m_u(:, 1:2), fullfile(save_path, sprintf('major_m_u_c%d_n%d_N%d_rib%d_gamma%d_R%d.csv', [round(c*1000), n, N, rib_d*1000, geo.gamma*100, round(R*100)])));
     
-    inner_idxs = vert_u(stat_idxs([1, end:-1:2]), :, end_incr);
+    inner_idxs = vert_u(labels.stat_idxs([1, end:-1:2]), :, end_incr);
     hexagon = inner_idxs;
     
     for i = 1:(N-1)
@@ -383,7 +370,7 @@ end
 if save_stability
     nodes_f = vert_f(:, :, end_incr);
     nodes_u = vert_u(:, :, end_incr);
-    save(fullfile(save_path, sprintf("040126_stability_c%d_n%d_N%d_rib%d_gamma%d_R%d.mat", [round(c*1000), n, N, rib_d*1000, geo.gamma*100, round(R*100)])), 'nodes_f', 'nodes_u', 'surf_strain', 'error', 'curv', 'E_ax', 'E_cr', 'E_v', 'edges', 'adj_faces', 'faces', 'runtime', 'geo', 'labels', 'outer_idx', 'stat_idxs');
+    save(fullfile(save_path, sprintf("040126_stability_c%d_n%d_N%d_rib%d_gamma%d_R%d.mat", [round(c*1000), n, N, rib_d*1000, geo.gamma*100, round(R*100)])), 'nodes_f', 'nodes_u', 'surf_strain', 'error', 'curv', 'E_ax', 'E_cr', 'E_v', 'edges', 'adj_faces', 'faces', 'runtime', 'geo', 'labels');
 end
 
 %% Generate unified mesh (This takes a while)

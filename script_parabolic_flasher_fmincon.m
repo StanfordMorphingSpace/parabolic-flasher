@@ -20,6 +20,9 @@ c = 0.25*c; % scale c for different depths
 iter = 10000; % number of fmincon iterations
 rib_d = 0.0; % dib depth, m
 
+surf_func = @(r) c*r.^2; % surface function for the paraboloid
+surf_func_prime = @(r) 2*c*r; % d(surf_func)/dr
+
 % % material properties polycarbonate
 E = 2390000000; 
 v = 0.37;
@@ -60,7 +63,10 @@ geo.N = N;
 geo.h = h; % layer thickness
 geo.n = n; % total subdivisions
 geo.R = R; % outer radius
-geo.c = c;
+geo.surf_func = surf_func;
+geo.surf_func_prime = surf_func_prime;
+
+geo.rib_d = rib_d;
 
 geo.k_axial = 8*E*t*l/(1-v^2)/9;
 
@@ -84,56 +90,11 @@ rot     = [ cos(beta), -sin(beta), 0;...
             sin(beta), cos(beta), 0;...
             0, 0, 1];
 
-[vert_u, vert_f, vert_ref, labels, edges, faces, stat_idxs, outer_idx, cone_idx] = generateMesh_ribs(A, N, h, n, R, c, 0, rib_d);
+[vert_u, vert_f, vert_ref, labels, edges, faces] = generateMesh_ribs(A, N, h, n, R, surf_func, 0, rib_d);
 %%
-adj_face = cell(length(edges), 1);
-% rearrange how faces are stored
-for i = 1:length(edges)
-    p1_index = edges(i, 1);
-    p2_index = edges(i, 2);
-    
-    % Bending forces
-    faces_with_node1        = (faces(:, 1) == p1_index) | (faces(:, 2) == p1_index) | (faces(:, 3) == p1_index);
-    faces_with_node2        = (faces(:, 1) == p2_index) | (faces(:, 2) == p2_index) | (faces(:, 3) == p2_index);
-    faces_adjacent_to_edge  = faces((faces_with_node1 & faces_with_node2), :);
-    
-    adj_face{i} = faces_adjacent_to_edge(~ismember(faces_adjacent_to_edge,[p1_index p2_index]));
-end
-
-% Only keep edges with 2 adjacent faces
-mask = cellfun(@(x) numel(x)==2, adj_face);
-creaseEdges = edges(mask,:);
-creaseIdx   = find(mask);
-
-% Build adjacency matrix safely
-adj_mat = cell2mat(cellfun(@(x) x(:).', adj_face(mask), 'UniformOutput', false));
-
-adj_faces.creaseIdx = creaseIdx;
-adj_faces.adj_mat = adj_mat;
-adj_faces.mask = mask;
+adj_faces = getAdjacentFaces(vert_u, edges, faces);
 
 nNodes = length(vert_u);
-
-% fix normals
-focal_point = [0, 0, 1/(c*4)];
-
-p1    = vert_u(creaseEdges(:,1), :);
-p2    = vert_u(creaseEdges(:,2), :);
-p3_1  = vert_u(adj_mat(:,1), :);
-p3_2  = vert_u(adj_mat(:,2), :);
-
-e = p2 - p1;
-e = e ./ vecnorm(e,2,2);
-
-n1 = cross(p2 - p1, p3_1 - p1, 2);
-n2 = cross(p3_2 - p1, p2 - p1, 2);
-
-n1 = n1 ./ vecnorm(n1,2,2);
-n2 = n2 ./ vecnorm(n2,2,2);
-
-ref = focal_point-p1;
-creaseEdges(dot(ref, n1, 2) < 0, :) = flip(creaseEdges(dot(ref, n1, 2) < 0, :), 2);
-adj_faces.creaseEdges = creaseEdges;
 
 %%
 lengths     = getEdgeLengths(vert_u(:, 1:3), edges);
@@ -162,10 +123,16 @@ mass = mass_scalar*ones(length(vert_u), 1);
 
 k_fold = geo.k_fold*ones(length(edges), 1);
 
+% zero out fold stiffness along ruling-line edges (they aren't actual creases)
+ruled_idx = [labels.valley_idx, labels.valley_rot_idx, labels.mount_idx];
+if isfield(labels, 'ribs_idx')
+    ruled_idx = [ruled_idx, labels.ribs_idx];
+end
+
 for i = 1:length(edges)
     p1 = edges(i, 1);
     p2 = edges(i, 2);
-    if ~isnan(labels(p1)) && ~isnan(labels(p2))
+    if ismember(p1, ruled_idx) && ismember(p2, ruled_idx)
         k_fold(i) = 0;
     end
 end
@@ -197,7 +164,7 @@ x0 = [p_u, p_f];
 Af = []; bf = [];
 Aeq = []; beq = [];
 lb = []; ub = [];
-nonlcon = @(x) geo_con(x, geo, beta, labels, stat_idxs, outer_idx, rib_d, rib_n, cone_idx);
+nonlcon = @(x) geo_con(x, geo, beta, labels);
 e_fun = @(x) get_energy(x, edges, adj_faces, geo, mass);
 %out_fun = @(x) stop = outfun(xk, optimValues, state)
 
@@ -296,23 +263,17 @@ end
 %% Save major fold lines
 
 if save_on
-    major_v_u = vert_u(0 < labels & labels <= n, :, end);
-    order = labels(0 < labels & labels <= n)-min(labels(0 < labels & labels <= n))+1;
-    major_v_u = flip(sortrows([major_v_u, order], 4), 1);
-    major_v_f = vert_f(labels(0 < labels & labels <= n), :, end);
-    major_v_f = flip(sortrows([major_v_f, order], 4), 1);
-    
-    major_m_u = vert_u((labels > n), :, end);
-    order = labels(labels > n)-min(labels(labels>n))+1;
-    major_m_u = sortrows([major_m_u, order], 4);
-    major_m_f = vert_f((labels > n), :, end);
-    major_m_f = sortrows([major_m_f, order], 4);
-    
+    major_v_u = flip(vert_u(labels.valley_idx, :, end), 1);
+    major_v_f = flip(vert_f(labels.valley_idx, :, end), 1);
+
+    major_m_u = vert_u(labels.mount_idx, :, end);
+    major_m_f = vert_f(labels.mount_idx, :, end);
+
     save(fullfile(save_path, sprintf("major_folds_c%d_n%d_N%d_rib%d_R%d_fmincon.mat", [round(c*1000), n, N, rib_d*1000, round(R*100)])), 'major_v_u', 'major_v_f', 'major_m_u', 'major_m_f');
     writematrix(major_v_u(:, 1:2), fullfile(save_path, sprintf('major_v_u_c%d_n%d_N%d_rib%d_R%d_fmincon.csv', [round(c*1000), n, N, rib_d*1000, round(R*100)])));
     writematrix(major_m_u(:, 1:2), fullfile(save_path, sprintf('major_m_u_c%d_n%d_N%d_rib%d_R%d_fmincon.csv', [round(c*1000), n, N, rib_d*1000, round(R*100)])));
-    
-    inner_idxs = vert_u(stat_idxs([1, end:-1:2]), :, end);
+
+    inner_idxs = vert_u(labels.stat_idxs([1, end:-1:2]), :, end);
     hexagon = inner_idxs;
     
     for i = 1:(N-1)
@@ -328,7 +289,7 @@ end
 if save_stability
     nodes_f = vert_f(:, :, end);
     nodes_u = vert_u(:, :, end);
-    save(fullfile(save_path, sprintf("051226_stability_c%d_n%d_N%d_rib%d_R%d_fmincon.mat", [round(c*1000), n, N, rib_d*1000, round(R*100)])), 'nodes_f', 'nodes_u', 'Fhist', 'Xhist', 'Ihist', 'Fcount', 'edges', 'adj_faces', 'faces', 'runtime', 'geo', 'labels', 'outer_idx', 'stat_idxs');
+    save(fullfile(save_path, sprintf("051226_stability_c%d_n%d_N%d_rib%d_R%d_fmincon.mat", [round(c*1000), n, N, rib_d*1000, round(R*100)])), 'nodes_f', 'nodes_u', 'Fhist', 'Xhist', 'Ihist', 'Fcount', 'edges', 'adj_faces', 'faces', 'runtime', 'geo', 'labels');
 end
 
 %% Generate unified mesh (This takes a while)
@@ -369,29 +330,37 @@ end
 
 %% functions
 
-function [c, ceq, c_g, ceq_g] = geo_con(x, geo, beta, labels, stat_idxs, outer_idx, rib_d, rib_n, cone_idx)
+function [c, ceq, c_g, ceq_g] = geo_con(x, geo, beta, labels)
+    stat_idxs = labels.stat_idxs;
+    has_ribs = isfield(labels, 'ribs_idx');
+    if has_ribs
+        num_rib_attach = sum(ismember(stat_idxs, labels.ribs_idx));
+    else
+        num_rib_attach = 0;
+    end
+
     p_u = x(:, 1:3);
     p_f = x(:, 4:6);
 
     p_u_stack = p_u'; p_u_stack = p_u_stack(:);
     p_f_stack = p_f'; p_f_stack = p_f_stack(:);
-    
-    b_u = getb_u(p_u_stack, labels, beta,  {{geo, outer_idx, stat_idxs, rib_d, rib_n}});
-    b_f = getb_f(p_f_stack, labels, beta, {{geo, cone_idx, stat_idxs, rib_n}});
 
-    J_u = getJacobian_u(p_u_stack, labels, beta, {{geo, outer_idx, stat_idxs, rib_d, rib_n}});
-    J_f = getJacobian_f(p_f_stack, labels, beta, {{geo, cone_idx, stat_idxs, rib_n}});
+    b_u = getb_u(p_u_stack, labels, beta,  {{geo}});
+    b_f = getb_f(p_f_stack, labels, beta, {{geo}});
+
+    J_u = getJacobian_u(p_u_stack, labels, beta, {{geo}});
+    J_f = getJacobian_f(p_f_stack, labels, beta, {{geo}});
 
     ceq = [b_u; b_f];
     ceq_g = [J_u, zeros(size(J_u)); zeros(size(J_f)), J_f];
 
     %inner nodes not covered by b
     for j = 1:length(stat_idxs) % exclude inner points so they stay fixed
-        if j < 2 || (rib_d > 0 && j > length(stat_idxs) - rib_n + 1)
+        if j < 2 || (has_ribs && j > length(stat_idxs) - num_rib_attach)
             ceq = [ceq; p_u(stat_idxs(j), 1)-geo.A; p_f(stat_idxs(j), 1)-geo.A];
             ceq = [ceq; p_u(stat_idxs(j), 2); p_f(stat_idxs(j), 2)];
-            ceq = [ceq; p_u(stat_idxs(j), 3)-p_f(stat_idxs(j), 3)]; 
-        elseif j > 2 || (rib_d > 0 && j <= length(stat_idxs) - rib_n + 1)
+            ceq = [ceq; p_u(stat_idxs(j), 3)-p_f(stat_idxs(j), 3)];
+        elseif j > 2 || (has_ribs && j <= length(stat_idxs) - num_rib_attach)
             ceq = [ceq; p_u(stat_idxs(j), 1)-p_f(stat_idxs(j), 1)];
             ceq = [ceq; p_u(stat_idxs(j), 2)-p_f(stat_idxs(j), 2)];
             %ceq = [ceq; p_u(stat_idxs(j), 3)-p_f(stat_idxs(j), 3)];
@@ -405,16 +374,16 @@ function [c, ceq, c_g, ceq_g] = geo_con(x, geo, beta, labels, stat_idxs, outer_i
     for j = 1:length(stat_idxs) % exclude inner points so they stay fixed
         idx_u = stat_idxs(j)*3-2;
         idx_f = length(p_u_stack) + stat_idxs(j)*3-2;
-        if j < 2 || (rib_d > 0 && j > length(stat_idxs) - rib_n + 1)
+        if j < 2 || (has_ribs && j > length(stat_idxs) - num_rib_attach)
             ceq_g(idx, idx_u) = 1;
             ceq_g(idx+1, idx_f) = 1;   %[ceq; p_u(stat_idxs(j), 1)-geo.A; p_f(stat_idxs(j), 1)-geo.A];
             ceq_g(idx+2, idx_u+1) = 1;
             ceq_g(idx+3, idx_f+1) = 1; %[ceq; p_u(stat_idxs(j), 2); p_f(stat_idxs(j), 2)];
-            ceq_g(idx+4, idx_u+2) = 1; 
-            ceq_g(idx+4, idx_f+2) = -1; %[ceq; p_u(stat_idxs(j), 3)-p_f(stat_idxs(j), 3)]; 
+            ceq_g(idx+4, idx_u+2) = 1;
+            ceq_g(idx+4, idx_f+2) = -1; %[ceq; p_u(stat_idxs(j), 3)-p_f(stat_idxs(j), 3)];
             idx = idx+5;
-        elseif j > 2 || (rib_d > 0 && j <= length(stat_idxs) - rib_n + 1)
-            ceq_g(idx, idx_u) = 1;  
+        elseif j > 2 || (has_ribs && j <= length(stat_idxs) - num_rib_attach)
+            ceq_g(idx, idx_u) = 1;
             ceq_g(idx, idx_f) = -1;      % [ceq; p_u(stat_idxs(j), 1)-p_f(stat_idxs(j), 1)];
             ceq_g(idx+1, idx_u+1) = 1;
             ceq_g(idx+1, idx_f+1) = -1;  % [ceq; p_u(stat_idxs(j), 2)-p_f(stat_idxs(j), 2)];
