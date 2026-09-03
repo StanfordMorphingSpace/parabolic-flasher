@@ -131,8 +131,7 @@ rot     = [ cos(beta), -sin(beta), 0;...
             0, 0, 1];
 
 % generate mesh
-%[vert_u, vert_f, vert_ref, labels, edges, faces] = generateMesh_ribs(A, N, h, n, R, surf_func, 0, rib_d, brim_R, brim_func);
-[vert_u, vert_f, vert_ref, labels, edges, faces] = generateMesh_ribs_old(A, N, h, n, R, surf_func, 0, rib_d);
+[vert_u, vert_f, vert_ref, labels, edges, faces] = generateMesh_ribs(A, N, h, n, R, surf_func, 0, rib_d, brim_R, brim_func);
 
 
 lengths = getEdgeLengths(vert_u, edges);
