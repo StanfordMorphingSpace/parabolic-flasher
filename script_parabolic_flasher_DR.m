@@ -16,7 +16,7 @@ n = 50; % total subdivisions per major fold line
 R = 507/2/1000; % outer radius as measured, m
 c = 1/(4*118.11/1000); % 4.65in focus to vertex for test article, m
 c = 0.3*c; % scale c for different depths
-iter = 50000; % number of fmincon iterations
+iter = 5000; % number of fmincon iterations
 
 surf_func = @(r) c*r.^2; % surface function for the paraboloid
 surf_func_prime = @(r) 2*c*r; % d(surf_func)/dr
