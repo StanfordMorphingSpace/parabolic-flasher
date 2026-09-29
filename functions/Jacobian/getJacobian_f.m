@@ -28,7 +28,8 @@ function J = getJacobian_f(nodes_f, labels, beta, varargin)
     surf_const_idxs = stat_idxs(~ismember(stat_idxs, exclude_from_surf));
 
     % exclude the fixed inner node from the spiral (constrained separately)
-    spiral_major = valley_idx(2:(end-length(labels.brim_valley_idx)));
+    % spiral_major = valley_idx(2:(end-length(labels.brim_valley_idx))); % to not constrain brim valley
+    spiral_major = valley_idx(2:(end));
 
     num_surface_constrs = length(surf_const_idxs);
     num_spiral_constraints = length(spiral_major);

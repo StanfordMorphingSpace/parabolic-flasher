@@ -16,17 +16,21 @@ n = 50; % total subdivisions per major fold line
 R = 507/2/1000; % outer radius as measured, m
 c = 1/(4*118.11/1000); % 4.65in focus to vertex for test article, m
 c = 0.3*c; % scale c for different depths
-iter = 5; % number of fmincon iterations
+iter = 50000; % number of fmincon iterations
 
 surf_func = @(r) c*r.^2; % surface function for the paraboloid
 surf_func_prime = @(r) 2*c*r; % d(surf_func)/dr
+
+% cone
+surf_func = @(r) 0.2*r; % surface function for the paraboloid
+surf_func_prime = @(r) 0.2; % d(surf_func)/dr
 
 % no rib set rib_d = 0
 rib_d = 0.00; % dib depth, m
 % no brim set brim_R = 0
 brim_R = 0.554/2; % brim outer radius
 
-brim_R = 0;
+brim_R = 0; % turns off brim
 
 brim_a = (c*R*(R-2*brim_R) + 0.142)/(brim_R-R)^2;
 brim_b = 2*R*(c*brim_R^2 - 0.142)/(brim_R-R)^2;
