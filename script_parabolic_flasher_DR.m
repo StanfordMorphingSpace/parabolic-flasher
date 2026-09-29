@@ -3,9 +3,9 @@ clc; clear;
 % add all subfolders
 addpath(genpath(pwd))
 
-save_on = 0; % toggle save fold lines for abaqus
+save_on = 1; % toggle save fold lines for abaqus
 plot_on = 1; % toggle plotting figures
-save_stability = 0; % toggle saving convergence info
+save_stability = 1; % toggle saving convergence info
 save_path = "D:\Curved_crease_antennas\SciTech_2027\fold_pattern\brims";
 
 %% wildtronics dish
