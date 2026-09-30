@@ -6,17 +6,17 @@ addpath(genpath(pwd))
 save_on = 1; % toggle save fold lines for abaqus
 plot_on = 1; % toggle plotting figures
 save_stability = 1; % toggle saving convergence info
-save_path = "D:\Curved_crease_antennas\SciTech_2027\fold_pattern\brims";
+save_path = "D:\Curved_crease_antennas\SciTech_2027\fold_pattern";
 
 %% wildtronics dish
-A = 115/2/1000; % inner polygon radium, m (4 in)
-N = 8;
+A = 115/2/1000; % inner polygon circumradius, m (4 in)
+N = 8; %degrees of rotational 
 h = 2.2/1000; % layer thickness, m
 n = 50; % total subdivisions per major fold line
 R = 507/2/1000; % outer radius as measured, m
 c = 1/(4*118.11/1000); % 4.65in focus to vertex for test article, m
 c = 0.3*c; % scale c for different depths
-iter = 5000; % number of fmincon iterations
+iter = 50000; % number of iterations
 
 surf_func = @(r) c*r.^2; % surface function for the paraboloid
 surf_func_prime = @(r) 2*c*r; % d(surf_func)/dr
@@ -42,6 +42,7 @@ brim_func_prime = @(r) 2*brim_a*r + brim_b;
 
 % % material properties polycarbonate
 E = 2390000000; 
+/
 v = 0.37;
 t = 0.002; % 0.00076 reported, 0.0006 measured outside, 0.0007 measured inside
 
