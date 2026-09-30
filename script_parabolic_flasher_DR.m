@@ -5,7 +5,7 @@ addpath(genpath(pwd))
 
 save_on = 1; % toggle save fold lines for abaqus
 plot_on = 1; % toggle plotting figures
-save_stability = 1; % toggle saving convergence info
+save_full = 1; % toggle saving workspace .mat file
 save_path = "D:\Curved_crease_antennas\SciTech_2027\fold_pattern";
 
 %% wildtronics dish
@@ -42,7 +42,6 @@ brim_func_prime = @(r) 2*brim_a*r + brim_b;
 
 % % material properties polycarbonate
 E = 2390000000; 
-/
 v = 0.37;
 t = 0.002; % 0.00076 reported, 0.0006 measured outside, 0.0007 measured inside
 
@@ -371,7 +370,7 @@ if save_on
     %save(fullfile(save_path, sprintf("101525_converge_c%d_n%d_N%d_rib%d_gamma%d.mat", [round(c*1000), n, N, rib_d*1000, geo.gamma*100])));
 end
 
-if save_stability
+if save_full
     nodes_f = vert_f(:, :, end_incr);
     nodes_u = vert_u(:, :, end_incr);
     save(fullfile(save_path, sprintf("040126_stability_c%d_n%d_N%d_rib%d_gamma%d_R%d.mat", [round(c*1000), n, N, rib_d*1000, geo.gamma*100, round(R*100)])), 'nodes_f', 'nodes_u', 'surf_strain', 'error', 'curv', 'E_ax', 'E_cr', 'E_v', 'edges', 'adj_faces', 'faces', 'runtime', 'geo', 'labels');
